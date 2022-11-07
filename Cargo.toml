@@ -1,0 +1,11 @@
+[package]
+name = "mdm-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+plist = "1"
+http = "0.2.8"
