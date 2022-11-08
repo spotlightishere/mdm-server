@@ -1,42 +1,29 @@
+use axum::{
+    http::header,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use serde::Serialize;
 
-pub fn plist<T>(val: &T) -> Plist
+/// An XML property list formatted reply.
+pub struct Plist<T>(pub T);
+
+impl<T> IntoResponse for Plist<T>
 where
     T: Serialize,
 {
-    Plist {
-        inner: {
-            let mut writer = Vec::with_capacity(128);
-            match plist::to_writer_xml(&mut writer, val) {
-                Ok(()) => Ok(writer),
-                Err(err) => {
-                    println!("error within xml plist serialization: {}", err);
-                    Err(())
-                }
+    fn into_response(self) -> Response {
+        let mut body = Vec::new();
+        match plist::to_writer_xml(&mut body, &self.0) {
+            Ok(()) => {
+                let headers = [(header::CONTENT_TYPE, "application/xml")];
+                (headers, body).into_response()
             }
-        },
-    }
-}
-
-/// An XML property list formatted reply.
-#[allow(missing_debug_implementations)]
-pub struct Plist {
-    inner: Result<Vec<u8>, ()>,
-}
-
-impl warp::Reply for Plist {
-    #[inline]
-    fn into_response(self) -> warp::reply::Response {
-        match self.inner {
-            Ok(body) => {
-                let mut res = warp::reply::Response::new(body.into());
-                res.headers_mut().insert(
-                    http::header::CONTENT_TYPE,
-                    http::HeaderValue::from_static("application/xml"),
-                );
-                res
+            Err(err) => {
+                // We should not expose this exact error for safety reasons.
+                println!("error within xml plist serialization: {}", err);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
             }
-            Err(()) => http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
