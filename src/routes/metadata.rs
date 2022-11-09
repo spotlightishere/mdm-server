@@ -1,5 +1,5 @@
+use crate::config::Config;
 use crate::plist::Plist;
-use axum::extract::Host;
 use axum::Json;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -13,8 +13,8 @@ pub struct MDMServiceConfig {
 
 // An initial configuration to permit easier access for enrollment.
 // See https://developer.apple.com/documentation/devicemanagement/implementing_device_management/simplifying_mdm_server_administration_for_ios_devices
-pub async fn create_service_config(Host(host): Host) -> Json<MDMServiceConfig> {
-    let host = host.as_str();
+pub async fn create_service_config() -> Json<MDMServiceConfig> {
+    let host = &Config::service().base_domain;
 
     let config = MDMServiceConfig {
         dep_enrollment_url: format!("https://{}/devicemanagement/mdm/dep_mdm_enroll", host),
