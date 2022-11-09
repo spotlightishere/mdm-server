@@ -1,4 +1,5 @@
 mod config;
+mod database;
 mod plist;
 mod routes;
 

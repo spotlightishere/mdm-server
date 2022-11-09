@@ -5,6 +5,7 @@ use std::{fs, net::SocketAddr};
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub service: ServiceConfig,
+    pub storage: StorageConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +21,12 @@ fn default_bind_address() -> SocketAddr {
     "127.0.0.1:8080".parse().unwrap()
 }
 
+#[derive(Debug, Deserialize)]
+pub struct StorageConfig {
+    pub database_path: String,
+    pub assets_dir: String,
+}
+
 static CONFIG: OnceCell<Config> = OnceCell::new();
 
 /// Used to access options within configuration.
@@ -32,6 +39,11 @@ impl Config {
     /// Retrieves general domain configuration for this application.
     pub fn service() -> &'static ServiceConfig {
         &Config::shared().service
+    }
+
+    /// Retrieves storage configuration.
+    pub fn storage() -> &'static StorageConfig {
+        &Config::shared().storage
     }
 
     /// Loads the configuration from the specified path to our shared OnceCell.

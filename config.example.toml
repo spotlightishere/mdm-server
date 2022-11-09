@@ -21,3 +21,10 @@ base_domain = "mdm.corp.example.com"
 #
 # Format example: com.example.corp.mdm
 base_identifier = "com.example.corp.mdm"
+
+[storage]
+# The path where to store the SQLite3 database.
+database_path = "./storage/db/primary.db"
+# The path where to store assets.
+# For example, fonts to serve.
+assets_dir = "./storage/assets"

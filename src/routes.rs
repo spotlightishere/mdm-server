@@ -1,6 +1,8 @@
 use axum::routing::get;
 use axum::Router;
 
+use crate::database::Database;
+
 mod metadata;
 
 pub fn create_routes() -> Router {
@@ -15,5 +17,6 @@ pub fn create_routes() -> Router {
         .route(
             "/devicemanagement/mdm/dep_anchor_certs",
             get(metadata::get_anchor_certs),
-        );
+        )
+        .layer(Database::open().unwrap());
 }
