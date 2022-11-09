@@ -35,7 +35,7 @@ impl Config {
     }
 
     /// Loads the configuration from the specified path to our shared OnceCell.
-    /// Please do not invoke this manually -- instead, access via shared.
+    /// Please do not invoke this more than once -- instead, access via shared.
     pub fn load_from(path: String) -> () {
         let contents = fs::read_to_string(path).expect("failed to read configuration");
         let config = toml::from_str(&contents).expect("unable to parse configuration");
