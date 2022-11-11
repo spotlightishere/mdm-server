@@ -25,6 +25,7 @@ fn default_bind_address() -> SocketAddr {
 #[derive(Debug, Deserialize)]
 pub struct StorageConfig {
     pub database_path: String,
+    pub certificates_dir: String,
     pub assets_dir: String,
 }
 

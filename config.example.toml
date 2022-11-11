@@ -30,6 +30,8 @@ organization_name = "Contoso Corporation"
 [storage]
 # The path where to store the SQLite3 database.
 database_path = "./storage/db/primary.db"
-# The path where to store assets.
+# The directory to store generated certificates in.
+certificates_dir = "./storage/certificates"
+# The directory where to store assets.
 # For example, fonts to serve.
 assets_dir = "./storage/assets"

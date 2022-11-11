@@ -3,8 +3,10 @@ mod database;
 mod plist;
 mod profile_payload;
 mod routes;
+mod storage;
 
 use crate::config::Config;
+use crate::storage::Storage;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -27,6 +29,8 @@ async fn main() {
     };
     Config::load_from(config_path);
 
+    // Ensure all of our disk storage is present.
+    Storage::create_if_needed();
     axum::Server::bind(&Config::service().bind_address)
         .serve(routes::create_routes().into_make_service())
         .await
