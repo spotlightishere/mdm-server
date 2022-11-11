@@ -21,6 +21,11 @@ base_domain = "mdm.corp.example.com"
 #
 # Format example: com.example.corp.mdm
 base_identifier = "com.example.corp.mdm"
+# The name of your organization. This will also be used for
+# your MDM root CA - "<organization> Root CA".
+#
+# Format example: "Contoso Corporation"
+organization_name = "Contoso Corporation"
 
 [storage]
 # The path where to store the SQLite3 database.

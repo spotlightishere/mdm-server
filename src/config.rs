@@ -14,6 +14,7 @@ pub struct ServiceConfig {
     pub bind_address: SocketAddr,
     pub base_domain: String,
     pub base_identifier: String,
+    pub organization_name: String,
 }
 
 // Per configuration, we should bind to 127.0.0.1:8080 by default.

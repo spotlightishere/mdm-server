@@ -3,11 +3,13 @@ use axum::Router;
 
 use crate::database::Database;
 
+mod enroll;
 mod metadata;
 
 pub fn create_routes() -> Router {
     return Router::new()
         .route("/", get(|| async { "Hello, world!" }))
+        .route("/enroll", get(enroll::generate_enroll_payload))
         .route("/MDMServiceConfig", get(metadata::create_service_config))
         .route("/mdm/trust_profile", get(metadata::create_trust_profile))
         .route(

@@ -1,6 +1,7 @@
 mod config;
 mod database;
 mod plist;
+mod profile_payload;
 mod routes;
 
 use crate::config::Config;
