@@ -1,5 +1,7 @@
 use axum::routing::get;
 use axum::Router;
+use tower::ServiceBuilder;
+use tower_http::trace::TraceLayer;
 
 use crate::database::Database;
 
@@ -20,5 +22,9 @@ pub fn create_routes() -> Router {
             "/devicemanagement/mdm/dep_anchor_certs",
             get(metadata::get_anchor_certs),
         )
-        .layer(Database::open().unwrap());
+        .layer(
+            ServiceBuilder::new()
+                .layer(Database::open().unwrap())
+                .layer(TraceLayer::new_for_http()),
+        );
 }

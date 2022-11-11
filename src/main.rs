@@ -6,10 +6,18 @@ mod routes;
 
 use crate::config::Config;
 use std::env;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
     println!("Starting up...");
+    // Allow for logging
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new::<String>(
+            "mdm_server=debug,tower_http=debug".into(),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     // TODO: Allow for a flag-based way to specify this config path
     let args: Vec<String> = env::args().collect();
