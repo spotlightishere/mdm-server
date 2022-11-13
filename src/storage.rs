@@ -1,6 +1,7 @@
 use crate::Config;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 
 pub struct Storage;
 
@@ -28,7 +29,7 @@ impl Storage {
             .expect("should be able to create parent directories for assets");
     }
 
-    pub fn get_certificate(filename: &'static str) -> std::path::PathBuf {
+    pub fn certificate_path(filename: &'static str) -> PathBuf {
         // TODO: This should not need to create a new config every time.
         Path::new(&Config::storage().certificates_dir).join(filename)
     }

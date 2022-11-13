@@ -1,6 +1,6 @@
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
-use std::{fs, net::SocketAddr};
+use std::{fs, net::IpAddr};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -11,15 +11,15 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 pub struct ServiceConfig {
     #[serde(default = "default_bind_address")]
-    pub bind_address: SocketAddr,
+    pub bind_address: IpAddr,
     pub base_domain: String,
     pub base_identifier: String,
     pub organization_name: String,
 }
 
-// Per configuration, we should bind to 127.0.0.1:8080 by default.
-fn default_bind_address() -> SocketAddr {
-    "127.0.0.1:8080".parse().unwrap()
+// Per configuration, we should bind to 127.0.0.1 by default.
+fn default_bind_address() -> IpAddr {
+    "127.0.0.1".parse().unwrap()
 }
 
 #[derive(Debug, Deserialize)]

@@ -3,11 +3,11 @@
 [service]
 # The address you'd like this service to bind to.
 # This can be either an IPv4 or IPv6 address.
-# For example, set 0.0.0.0:8080 to listen on all interfaces with port 8080.
-# If not specified, defaults to 127.0.0.1:8080.
+# For example, set 0.0.0.0 to listen on all interfaces, port 80 and 443.
+# If not specified, defaults to 127.0.0.1.
 #
-# Format example: 127.0.0.1:8080
-bind_address = "127.0.0.1:8080"
+# Format example: 127.0.0.1
+bind_address = "127.0.0.1"
 # The domain you'd like to use your instance with.
 # Please do not include anything beyond the domain.
 #
