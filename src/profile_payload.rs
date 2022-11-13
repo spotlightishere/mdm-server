@@ -2,10 +2,14 @@ use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
+use openssl::{
+    pkcs7::{Pkcs7, Pkcs7Flags},
+    stack::Stack,
+};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::plist::Plist;
+use crate::{certificates::Certificates, plist::Plist};
 
 #[non_exhaustive]
 #[derive(Serialize)]
@@ -43,8 +47,7 @@ where
 {
     fn into_response(self) -> Response {
         // Let's get our payload contents.
-        let profile_xml = Plist(self).to_xml();
-        let body = match profile_xml {
+        let profile_xml = match Plist(self).to_xml() {
             Ok(body) => body,
             Err(err) => {
                 // We should not expose this exact error for safety reasons.
@@ -54,8 +57,23 @@ where
             }
         };
 
-        // TODO: Managing signing contents
+        // Next, sign this profile.
+        let ssl_cert = &Certificates::shared().ssl_cert;
+        let ssl_key = &Certificates::shared().ssl_key;
+        let empty_certs = Stack::new().expect("should be able to create certificate stack");
+        let signed_profile = Pkcs7::sign(
+            &ssl_cert,
+            &ssl_key,
+            &empty_certs,
+            &profile_xml,
+            Pkcs7Flags::BINARY,
+        )
+        .expect("should be able to sign certificate");
+        let signed_profile_der = signed_profile
+            .to_der()
+            .expect("should be able to convert PKCS7 container to DER form");
+
         let headers = [(header::CONTENT_TYPE, "application/x-apple-aspen-config")];
-        (headers, body).into_response()
+        (headers, signed_profile_der).into_response()
     }
 }

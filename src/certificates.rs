@@ -15,8 +15,8 @@ mod generator;
 pub struct Certificates {
     root_ca_cert: X509,
     root_ca_key: PKey<Private>,
-    ssl_cert: X509,
-    ssl_key: PKey<Private>,
+    pub ssl_cert: X509,
+    pub ssl_key: PKey<Private>,
 }
 
 static CERTIFICATES: OnceCell<Certificates> = OnceCell::new();
@@ -57,7 +57,7 @@ impl Certificates {
             root_ca_cert: X509::read_cert_pem(&root_ca_cert_path),
             root_ca_key: PKey::<Private>::read_key_pem(&root_ca_key_path),
             ssl_cert: X509::read_cert_pem(&ssl_cert_path),
-            ssl_key: PKey::<Private>::read_key_pem(&root_ca_key_path),
+            ssl_key: PKey::<Private>::read_key_pem(&ssl_key_path),
         };
 
         CERTIFICATES
