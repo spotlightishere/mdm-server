@@ -3,7 +3,7 @@ use crate::profile_payload::{Profile, ProfileTypes};
 use rand::distributions::{Alphanumeric, DistString};
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct EnrollPayload {
     #[serde(rename = "URL")]
     url: String,
@@ -38,6 +38,6 @@ pub async fn generate_enroll_payload() -> Profile<EnrollPayload> {
 If you do not recognize this name, please remove this profile.",
             service_config.organization_name
         ),
-        content: payload_content,
+        contents: [payload_content].to_vec(),
     }
 }

@@ -7,7 +7,7 @@ use openssl::{
     rsa::Rsa,
     x509::{
         extension::{AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectKeyIdentifier},
-        X509Builder, X509NameBuilder, X509ReqBuilder, X509,
+        X509Builder, X509NameBuilder, X509,
     },
 };
 

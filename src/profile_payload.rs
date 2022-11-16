@@ -38,7 +38,7 @@ where
     #[serde(rename = "PayloadDescription")]
     pub description: String,
     #[serde(rename = "PayloadContent")]
-    pub content: T,
+    pub contents: Vec<T>,
 }
 
 impl<T> IntoResponse for Profile<T>
