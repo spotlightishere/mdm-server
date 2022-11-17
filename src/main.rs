@@ -1,6 +1,7 @@
 mod certificates;
 mod config;
 mod database;
+mod payloads;
 mod plist;
 mod profile_payload;
 mod routes;

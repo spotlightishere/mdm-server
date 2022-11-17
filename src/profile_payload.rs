@@ -5,26 +5,15 @@ use axum::{
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{certificates::sign_response, plist::Plist};
+use crate::{certificates::sign_response, payloads::ProfilePayloads, plist::Plist};
 
-#[non_exhaustive]
-#[derive(Serialize)]
-/// Represents the type of a profile.
-pub enum ProfileTypes {
-    #[serde(rename = "Profile Service")]
-    ProfileService,
-}
-
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 /// A representation of a profile.
-pub struct Profile<T>
-where
-    T: Serialize,
-{
+pub struct Profile {
     #[serde(rename = "PayloadVersion")]
     pub version: isize,
     #[serde(rename = "PayloadType")]
-    pub payload_type: ProfileTypes,
+    pub payload_type: String,
     #[serde(rename = "PayloadIdentifier")]
     pub identifier: String,
     #[serde(rename = "PayloadUUID")]
@@ -34,13 +23,10 @@ where
     #[serde(rename = "PayloadDescription")]
     pub description: String,
     #[serde(rename = "PayloadContent")]
-    pub contents: Vec<T>,
+    pub contents: Vec<ProfilePayloads>,
 }
 
-impl<T> IntoResponse for Profile<T>
-where
-    T: Serialize,
-{
+impl IntoResponse for Profile {
     fn into_response(self) -> Response {
         // Let's get our payload contents.
         let profile_xml = match Plist(self).to_xml() {
