@@ -2,14 +2,10 @@ use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
-use openssl::{
-    pkcs7::{Pkcs7, Pkcs7Flags},
-    stack::Stack,
-};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{certificates::Certificates, plist::Plist};
+use crate::{certificates::sign_response, plist::Plist};
 
 #[non_exhaustive]
 #[derive(Serialize)]
@@ -57,23 +53,10 @@ where
             }
         };
 
-        // Next, sign this profile.
-        let ssl_cert = &Certificates::shared().ssl_cert;
-        let ssl_key = &Certificates::shared().ssl_key;
-        let empty_certs = Stack::new().expect("should be able to create certificate stack");
-        let signed_profile = Pkcs7::sign(
-            &ssl_cert,
-            &ssl_key,
-            &empty_certs,
-            &profile_xml,
-            Pkcs7Flags::BINARY,
-        )
-        .expect("should be able to sign certificate");
-        let signed_profile_der = signed_profile
-            .to_der()
-            .expect("should be able to convert PKCS7 container to DER form");
+        // We need to sign this profile.
+        let signed_profile = sign_response(profile_xml);
 
         let headers = [(header::CONTENT_TYPE, "application/x-apple-aspen-config")];
-        (headers, signed_profile_der).into_response()
+        (headers, signed_profile).into_response()
     }
 }

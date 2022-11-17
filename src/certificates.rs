@@ -1,7 +1,9 @@
 use crate::storage::Storage;
 use once_cell::sync::OnceCell;
 use openssl::{
+    pkcs7::{Pkcs7, Pkcs7Flags},
     pkey::{PKey, Private},
+    stack::Stack,
     x509::X509,
 };
 
@@ -64,4 +66,23 @@ impl Certificates {
             .set(certificates)
             .expect("should be able to set certificates");
     }
+}
+
+/// Data signed by the configured SSL certificate, in PKCS#7 format.
+pub fn sign_response(unsigned_contents: Vec<u8>) -> Vec<u8> {
+    let ssl_cert = &Certificates::shared().ssl_cert;
+    let ssl_key = &Certificates::shared().ssl_key;
+    let empty_certs = Stack::new().expect("should be able to create certificate stack");
+    let signed_contents = Pkcs7::sign(
+        &ssl_cert,
+        &ssl_key,
+        &empty_certs,
+        &unsigned_contents,
+        Pkcs7Flags::BINARY,
+    )
+    .expect("should be able to sign certificate");
+
+    signed_contents
+        .to_der()
+        .expect("should be able to convert PKCS7 container to DER form")
 }
