@@ -1,4 +1,9 @@
 use crate::storage::Storage;
+use crate::{payloads::Profile, plist::Plist};
+use axum::{
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+};
 use once_cell::sync::OnceCell;
 use openssl::{
     pkcs7::{Pkcs7, Pkcs7Flags},
@@ -6,6 +11,7 @@ use openssl::{
     stack::Stack,
     x509::X509,
 };
+use serde::Serialize;
 
 use self::file::{PrivateKeyStorage, X509Storage};
 
@@ -69,7 +75,7 @@ impl Certificates {
 }
 
 /// Data signed by the configured SSL certificate, in PKCS#7 format.
-pub fn sign_response(unsigned_contents: Vec<u8>) -> Vec<u8> {
+pub fn sign_contents(unsigned_contents: Vec<u8>) -> Vec<u8> {
     let ssl_cert = &Certificates::shared().ssl_cert;
     let ssl_key = &Certificates::shared().ssl_key;
     let empty_certs = Stack::new().expect("should be able to create certificate stack");
@@ -85,4 +91,22 @@ pub fn sign_response(unsigned_contents: Vec<u8>) -> Vec<u8> {
     signed_contents
         .to_der()
         .expect("should be able to convert PKCS7 container to DER form")
+}
+
+pub fn sign_profile<T: Serialize>(profile: T) -> Response {
+    // Let's get our payload contents.
+    let profile_xml = match Plist(profile).to_xml() {
+        Ok(body) => body,
+        Err(err) => {
+            // We should not expose this exact error for safety reasons.
+            println!("error within xml plist serialization: {}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response();
+        }
+    };
+
+    // We need to sign this profile.
+    let signed_profile = sign_contents(profile_xml);
+
+    let headers = [(header::CONTENT_TYPE, "application/x-apple-aspen-config")];
+    (headers, signed_profile).into_response()
 }

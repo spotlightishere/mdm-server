@@ -1,6 +1,5 @@
-use crate::certificates::sign_response;
-use crate::{config::Config, plist::Plist};
-use axum::response::IntoResponse;
+use crate::certificates::sign_profile;
+use crate::config::Config;
 use axum::response::Response;
 use rand::distributions::{Alphanumeric, DistString};
 use serde::Serialize;
@@ -36,13 +35,7 @@ If you do not recognize this name, please remove this profile.",
         },
     };
 
-    let enroll_xml = Plist(enroll_profile)
-        .to_xml()
-        .expect("should be able to create enrollment profile");
-    let signed_xml = sign_response(enroll_xml);
-
-    let headers = [("Content-Type", "application/x-apple-aspen-config")];
-    (headers, signed_xml).into_response()
+    sign_profile(enroll_profile)
 }
 
 /// Our custom profile format for enroll.
