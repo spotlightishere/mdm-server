@@ -1,3 +1,4 @@
+mod app_state;
 mod certificates;
 mod config;
 mod database;
@@ -6,9 +7,8 @@ mod plist;
 mod routes;
 mod storage;
 
-use crate::certificates::Certificates;
+use crate::app_state::AppState;
 use crate::config::Config;
-use crate::storage::Storage;
 use axum_server;
 use axum_server::tls_rustls::RustlsConfig;
 use std::{env, net::SocketAddr};
@@ -31,23 +31,23 @@ async fn main() {
         Some(s) => s.clone(),
         None => "./config.toml".to_string(),
     };
-    Config::load_from(config_path);
-
+    let config = Config::load_from(config_path);
     // Ensure all of our disk storage is present.
-    Storage::create_if_needed();
-    Certificates::issue_if_needed();
+    config.create_storage_dirs();
 
-    let ssl_cert_path = Storage::certificate_path("ssl_cert.pem");
-    let ssl_key_path = Storage::certificate_path("ssl_key.pem");
+    // Create our global state for later usage.
+    let state = AppState::with_config(config.clone());
+
+    let ssl_cert_path = config.certificate_path("ssl_cert.pem");
+    let ssl_key_path = config.certificate_path("ssl_key.pem");
     let tls_config = RustlsConfig::from_pem_file(ssl_cert_path, ssl_key_path)
         .await
         .expect("should be able to load SSL certificate and private key");
 
     // Use the https address configured.
-    let https_address = SocketAddr::new(Config::service().bind_address, 443);
-
+    let https_address = SocketAddr::new(config.service.bind_address, 443);
     axum_server::bind_rustls(https_address, tls_config)
-        .serve(routes::create_routes().into_make_service())
+        .serve(routes::create_routes(state).into_make_service())
         .await
         .unwrap();
 }

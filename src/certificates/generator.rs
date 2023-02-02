@@ -42,7 +42,7 @@ pub fn create_base_certificate() -> Result<(X509Builder, PKey<Private>), ErrorSt
 }
 
 /// Generates a root CA certificate.
-pub fn create_root_certificate() -> Result<(X509, PKey<Private>), ErrorStack> {
+pub fn create_root_certificate(config: &Config) -> Result<(X509, PKey<Private>), ErrorStack> {
     // Get a basic certificate to build off of.
     let (mut cert_builder, root_key) = create_base_certificate()?;
 
@@ -50,7 +50,7 @@ pub fn create_root_certificate() -> Result<(X509, PKey<Private>), ErrorStack> {
     let mut cert_name = X509NameBuilder::new()?;
 
     // We'll utilize the configured organization name for values.
-    let org_name = &Config::service().organization_name;
+    let org_name = &config.service.organization_name;
     cert_name.append_entry_by_text("O", &org_name)?;
     cert_name.append_entry_by_text("CN", &format!("{} Root Certificate", org_name))?;
 
@@ -83,13 +83,14 @@ pub fn create_root_certificate() -> Result<(X509, PKey<Private>), ErrorStack> {
 
 /// Generates a general SSL certificate for the configured base domain.
 pub fn create_ssl_certificate(
+    config: &Config,
     root_ca: &X509,
     root_key: &PKey<Private>,
 ) -> Result<(X509, PKey<Private>), ErrorStack> {
     // We'll set our domain name as the CN.
     let mut cert_name = X509NameBuilder::new()?;
-    let org_name = &Config::service().organization_name;
-    let domain_name = &Config::service().base_domain;
+    let org_name = &config.service.organization_name;
+    let domain_name = &config.service.base_domain;
     cert_name.append_entry_by_text("O", &org_name)?;
     cert_name.append_entry_by_text("CN", &domain_name)?;
     let cert_name = cert_name.build();

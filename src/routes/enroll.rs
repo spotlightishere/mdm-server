@@ -1,14 +1,13 @@
-use crate::certificates::sign_profile;
-use crate::config::Config;
-use axum::response::Response;
+use crate::app_state::AppState;
+use axum::{extract::State, response::Response};
 use rand::distributions::{Alphanumeric, DistString};
 use serde::Serialize;
 use uuid::Uuid;
 
 /// Handles the enrollment profile payload.
 /// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html#//apple_ref/doc/uid/TP40009505-CH2-SW17
-pub async fn generate_enroll_payload() -> Response {
-    let service_config = Config::service();
+pub async fn generate_enroll_payload(State(state): State<AppState>) -> Response {
+    let service_config = state.config.service;
     // TODO: Persist challenge
     let challenge = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
 
@@ -35,7 +34,7 @@ If you do not recognize this name, please remove this profile.",
         },
     };
 
-    sign_profile(enroll_profile)
+    state.certificates.sign_profile(enroll_profile)
 }
 
 /// Our custom profile format for enroll.

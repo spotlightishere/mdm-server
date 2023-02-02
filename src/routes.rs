@@ -3,12 +3,12 @@ use axum::Router;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
-use crate::database::Database;
+use crate::app_state::AppState;
 
 mod enroll;
 mod metadata;
 
-pub fn create_routes() -> Router {
+pub fn create_routes(state: AppState) -> Router {
     return Router::new()
         .route("/", get(|| async { "Hello, world!" }))
         .route("/enroll", get(enroll::generate_enroll_payload))
@@ -22,9 +22,6 @@ pub fn create_routes() -> Router {
             "/devicemanagement/mdm/dep_anchor_certs",
             get(metadata::get_anchor_certs),
         )
-        .layer(
-            ServiceBuilder::new()
-                .layer(Database::open().unwrap())
-                .layer(TraceLayer::new_for_http()),
-        );
+        .with_state(state)
+        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 }
