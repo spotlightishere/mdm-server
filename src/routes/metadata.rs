@@ -1,9 +1,9 @@
 use crate::app_state::AppState;
-use crate::plist::Plist;
+use crate::payloads::{BasePayload, Profile, RootCertificatePayload};
 use axum::extract::State;
+use axum::response::Response;
 use axum::Json;
 use serde::Serialize;
-use std::collections::HashMap;
 
 #[derive(Serialize)]
 pub struct MDMServiceConfig {
@@ -35,13 +35,32 @@ pub async fn get_anchor_certs() -> Json<Vec<String>> {
     Json(certificates)
 }
 
-pub async fn create_trust_profile() -> Plist<HashMap<String, String>> {
-    // TODO(spotlightishere): Implement
+pub async fn create_trust_profile(State(state): State<AppState>) -> Response {
+    // Provides the root CA certificate necessary to continue a connection to this server.
     // https://developer.apple.com/documentation/devicemanagement/implementing_device_management/simplifying_mdm_server_administration_for_ios_devices
-    let mut payload = HashMap::new();
-    payload.insert("key1".to_string(), "value1".to_string());
-    payload.insert("key2".to_string(), "value2".to_string());
-    Plist(payload)
+    let service_config = &state.config.service;
+    let root_ca_contents = state.certificates.root_ca_cert.to_pem().unwrap();
+
+    let trust_profile = Profile {
+        base: BasePayload {
+            identifier: format!("{}.trust-profile", service_config.base_identifier),
+            display_name: Some(format!(
+                "Trust Profile for {}",
+                service_config.organization_name
+            )),
+            description: Some(format!(
+                "Configures your device to securely connect to the MDM service for \"{}\".",
+                service_config.organization_name
+            )),
+            ..Default::default()
+        },
+        contents: vec![RootCertificatePayload {
+            file_name: "root_ca.pem".to_string(),
+            certificate: root_ca_contents,
+        }],
+    };
+
+    state.serve_plist(trust_profile)
 }
 
 pub async fn begin_enrollment() -> Json<Vec<String>> {

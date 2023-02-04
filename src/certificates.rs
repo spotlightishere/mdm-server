@@ -20,8 +20,7 @@ mod generator;
 /// Manages certificate generation and signing.
 #[derive(Clone, Debug)]
 pub struct Certificates {
-    root_ca_cert: X509,
-    root_ca_key: PKey<Private>,
+    pub root_ca_cert: X509,
     pub ssl_cert: X509,
     pub ssl_key: PKey<Private>,
 }
@@ -54,7 +53,6 @@ impl Certificates {
         // Load our certificates, and then we're all set!
         Certificates {
             root_ca_cert: X509::read_cert_pem(&root_ca_cert_path),
-            root_ca_key: PKey::<Private>::read_key_pem(&root_ca_key_path),
             ssl_cert: X509::read_cert_pem(&ssl_cert_path),
             ssl_key: PKey::<Private>::read_key_pem(&ssl_key_path),
         }
