@@ -70,7 +70,7 @@ pub async fn create_trust_profile(State(state): State<AppState>) -> Response {
         }],
     };
 
-    state.serve_plist(trust_profile)
+    state.serve_profile(trust_profile)
 }
 
 pub async fn begin_enrollment() -> Json<Vec<String>> {

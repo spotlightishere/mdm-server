@@ -1,67 +1,43 @@
 use openssl::{
-    asn1::Asn1Time,
-    bn::{BigNum, MsbOption},
     error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, Private},
     rsa::Rsa,
     x509::{
-        extension::{AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectKeyIdentifier},
-        X509Builder, X509NameBuilder, X509,
+        extension::{
+            AuthorityKeyIdentifier, BasicConstraints, ExtendedKeyUsage, KeyUsage,
+            SubjectAlternativeName,
+        },
+        X509,
     },
 };
 
+use super::file::{build_subject, X509BuilderHelper};
 use crate::config::Config;
 
-/// Sets basic information for a certificate, generating an appropriate private key.
-pub fn create_base_certificate() -> Result<(X509Builder, PKey<Private>), ErrorStack> {
+/// Generates a root CA certificate.
+pub fn create_root_certificate(config: &Config) -> Result<(X509, PKey<Private>), ErrorStack> {
     // 2048 bits is strong enough while still being compatible with older devices.
     let rsa = Rsa::generate(2048)?;
-    let cert_key = PKey::from_rsa(rsa)?;
-
-    // The following logic is more or less from
-    // https://github.com/sfackler/rust-openssl/blob/2aed206e9b69ba1373c126df09baafcd60c51099/openssl/examples/mk_certs.rs#LL30-L34
-    let serial_number = {
-        let mut serial = BigNum::new()?;
-        serial.rand(159, MsbOption::MAYBE_ZERO, false)?;
-        serial.to_asn1_integer()?
-    };
+    let root_key = PKey::from_rsa(rsa)?;
 
     // Finally, generate our certificate!
     let mut cert_builder = X509::builder()?;
     cert_builder.set_version(2)?;
-    cert_builder.set_serial_number(&serial_number)?;
-    cert_builder.set_pubkey(&cert_key)?;
-    let not_before = Asn1Time::days_from_now(0)?;
-    cert_builder.set_not_before(&not_before)?;
-    // We'll have the certificate be valid for 10 years.
-    let not_after = Asn1Time::days_from_now(3650)?;
-    cert_builder.set_not_after(&not_after)?;
+    cert_builder.generate_serial()?;
+    cert_builder.set_pubkey(&root_key)?;
+    // For our root certificate, a validity of 10 years suits our needs.
+    cert_builder.set_days_valid(3650)?;
 
-    Ok((cert_builder, cert_key))
-}
-
-/// Generates a root CA certificate.
-pub fn create_root_certificate(config: &Config) -> Result<(X509, PKey<Private>), ErrorStack> {
-    // Get a basic certificate to build off of.
-    let (mut cert_builder, root_key) = create_base_certificate()?;
-
-    // Let's set name properties for our certificate.
-    let mut cert_name = X509NameBuilder::new()?;
-
-    // We'll utilize the configured organization name for values.
+    // We'll utilize the configured organization name for subject values.
     let org_name = &config.service.organization_name;
-    cert_name.append_entry_by_text("O", &org_name)?;
-    cert_name.append_entry_by_text("CN", &format!("{} Root Certificate", org_name))?;
-
-    let cert_name = cert_name.build();
-
+    let cert_name = build_subject(org_name, &format!("{org_name} Root Certificate"))?;
     // We issue ourselves.
     cert_builder.set_subject_name(&cert_name)?;
     cert_builder.set_issuer_name(&cert_name)?;
 
     // Ensure this can be used as a certificate authority.
-    cert_builder.append_extension(BasicConstraints::new().critical().ca().build()?)?;
+    cert_builder.append_extension(BasicConstraints::new().critical().pathlen(0).ca().build()?)?;
     cert_builder.append_extension(
         KeyUsage::new()
             .critical()
@@ -71,10 +47,7 @@ pub fn create_root_certificate(config: &Config) -> Result<(X509, PKey<Private>),
     )?;
 
     // Sign, and create!
-    let subject_key_identifier =
-        SubjectKeyIdentifier::new().build(&cert_builder.x509v3_context(None, None))?;
-    cert_builder.append_extension(subject_key_identifier)?;
-
+    cert_builder.set_subject_key_identifier(None)?;
     cert_builder.sign(&root_key, MessageDigest::sha256())?;
     let root_cert = cert_builder.build();
 
@@ -87,42 +60,56 @@ pub fn create_ssl_certificate(
     root_ca: &X509,
     root_key: &PKey<Private>,
 ) -> Result<(X509, PKey<Private>), ErrorStack> {
-    // We'll set our domain name as the CN.
-    let mut cert_name = X509NameBuilder::new()?;
-    let org_name = &config.service.organization_name;
-    let domain_name = &config.service.base_domain;
-    cert_name.append_entry_by_text("O", &org_name)?;
-    cert_name.append_entry_by_text("CN", &domain_name)?;
-    let cert_name = cert_name.build();
+    // 2048 bits is strong enough while still being compatible with older devices.
+    let rsa = Rsa::generate(2048)?;
+    let ssl_key = PKey::from_rsa(rsa)?;
 
-    // Get a basic certificate to build off of.
-    let (mut cert_builder, ssl_key) = create_base_certificate()?;
+    // Finally, generate our certificate!
+    let mut cert_builder = X509::builder()?;
+    cert_builder.set_version(2)?;
+    cert_builder.generate_serial()?;
+    cert_builder.set_pubkey(&ssl_key)?;
+    // For our SSL certificate, its validity cannot exceed 825 days
+    // if we want any modern Apple platform to mark it as valid.
+    // For more information: https://support.apple.com/en-us/HT210176
+    cert_builder.set_days_valid(825)?;
+
+    let root_issuer = Some(root_ca.as_ref());
+
+    // We'll set our domain name as the CN.
+    let domain_name = &config.service.base_domain;
+    let cert_name = build_subject(&config.service.organization_name, domain_name)?;
+    cert_builder.set_subject_name(&cert_name)?;
+    // We'll also need to set DNS names.
+    cert_builder.append_extension(
+        SubjectAlternativeName::new()
+            .dns(domain_name)
+            .build(&cert_builder.x509v3_context(root_issuer, None))?,
+    )?;
 
     // Our root CA will issue us.
     cert_builder.set_issuer_name(root_ca.issuer_name())?;
-    cert_builder.set_subject_name(&cert_name)?;
 
     // Ensure that we can be used for SSL.
     cert_builder.append_extension(BasicConstraints::new().build()?)?;
+    // Per Apple, we must have id-kp-serverAuth applied.
+    cert_builder.append_extension(ExtendedKeyUsage::new().server_auth().build()?)?;
     cert_builder.append_extension(
         KeyUsage::new()
             .critical()
-            .non_repudiation()
             .digital_signature()
             .key_encipherment()
             .build()?,
     )?;
 
     // Sign, and create!
-    let subject_key_identifier =
-        SubjectKeyIdentifier::new().build(&cert_builder.x509v3_context(Some(&root_ca), None))?;
-    cert_builder.append_extension(subject_key_identifier)?;
-
-    let auth_key_identifier = AuthorityKeyIdentifier::new()
-        .keyid(false)
-        .issuer(false)
-        .build(&cert_builder.x509v3_context(Some(&root_ca), None))?;
-    cert_builder.append_extension(auth_key_identifier)?;
+    cert_builder.set_subject_key_identifier(root_issuer)?;
+    cert_builder.append_extension(
+        AuthorityKeyIdentifier::new()
+            .keyid(false)
+            .issuer(false)
+            .build(&cert_builder.x509v3_context(root_issuer, None))?,
+    )?;
 
     cert_builder.sign(&root_key, MessageDigest::sha256())?;
     let ssl_cert = cert_builder.build();

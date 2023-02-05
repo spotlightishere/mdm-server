@@ -25,7 +25,7 @@ impl AppState {
     }
 
     // Signs a profile with the current SSL certificate.
-    pub fn sign_profile<T: Serialize>(&self, profile: T) -> Response {
+    pub fn serve_profile<T: Serialize>(&self, profile: T) -> Response {
         self.certificates.sign_profile(profile)
     }
 

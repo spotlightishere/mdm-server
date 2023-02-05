@@ -68,5 +68,5 @@ If you do not recognize this name, please remove this profile.",
         },
     };
 
-    state.sign_profile(enroll_profile)
+    state.serve_profile(enroll_profile)
 }
