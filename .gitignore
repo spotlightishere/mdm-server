@@ -1,3 +1,4 @@
 /target
+/optional_value/target
 config.toml
 /storage

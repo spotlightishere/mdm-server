@@ -20,3 +20,4 @@ tower = "0.4"
 tower-http = { version = "0.3", features = ["trace"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 openssl = "0.10"
+optional_value = { path = "./optional_value" }

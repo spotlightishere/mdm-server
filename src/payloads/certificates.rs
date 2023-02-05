@@ -1,6 +1,6 @@
-use serde::Serialize;
+use optional_value::payload;
 
-#[derive(Clone, Serialize)]
+#[payload]
 pub struct RootCertificatePayload {
     #[serde(rename = "PayloadCertificateFileName")]
     pub file_name: String,

@@ -1,0 +1,12 @@
+[package]
+name = "optional_value"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+syn = "1.0"
+
+[lib]
+proc-macro = true

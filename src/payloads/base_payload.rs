@@ -1,9 +1,10 @@
+use optional_value::payload;
 use serde::Serialize;
 use uuid::Uuid;
 
 use super::PayloadType;
 
-#[derive(Clone, Serialize)]
+#[payload]
 /// Common keys across all payloads.
 /// https://developer.apple.com/documentation/devicemanagement/commonpayloadkeys
 pub struct BasePayload {
@@ -11,24 +12,24 @@ pub struct BasePayload {
     // The description of this payload - user visible.
     pub description: Option<String>,
     #[serde(rename = "PayloadDisplayName")]
-    // The name this payload is displayed as - user visible.
+    /// The name this payload is displayed as - user visible.
     pub display_name: Option<String>,
     #[serde(rename = "PayloadIdentifier")]
-    // The identifier of this payload, in reverse domain notation.
+    /// The identifier of this payload, in reverse domain notation.
     pub identifier: String,
     #[serde(rename = "PayloadOrganization")]
-    // The name of the organization this payload represents - user-visible.
+    /// The name of the organization this payload represents - user-visible.
     pub organization: Option<String>,
     #[serde(rename = "PayloadType")]
-    // The payload type this payload refers to.
-    // For the top-level payload in a profile, specify "Configuration".
+    /// The payload type this payload refers to.
+    /// For the top-level payload in a profile, specify "Configuration".
     pub payload_type: PayloadType,
     #[serde(rename = "PayloadUUID")]
-    // Each payload must have a unique UUID.
-    // Persist UUIDs for payloads that you may change in the future.
+    /// Each payload must have a unique UUID.
+    /// Persist UUIDs for payloads that you may change in the future.
     pub uuid: Uuid,
     #[serde(rename = "PayloadVersion")]
-    // Every payload's version is typically 1.
+    /// Every payload's version is typically 1.
     pub version: isize,
 }
 
@@ -49,7 +50,7 @@ impl Default for BasePayload {
     }
 }
 
-#[derive(Clone, Serialize)]
+#[payload]
 /// A profile - the top-level payload, encapsulating all profiles within.
 /// https://developer.apple.com/documentation/devicemanagement/toplevel
 pub struct Profile<T>
