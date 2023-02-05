@@ -24,13 +24,14 @@ pub fn payload(_metadata: TokenStream, item: TokenStream) -> TokenStream {
 
         // As long as the field's last path segment is "Option", we will assume
         // that this is an Option type.
-        let last_ident = &field_path
-            .path
-            .segments
-            .last()
-            .expect("field path has last segment")
-            .ident;
-        if last_ident != "Option" {
+        let Some(last_segment) = field_path.path.segments.last() else {
+            // It's possible that the user is still writing code,
+            // or we've run into another scenario we're not familiar with.
+            // Silently ignore.
+            continue;
+        };
+
+        if last_segment.ident != "Option" {
             continue;
         }
 
