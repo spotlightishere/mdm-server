@@ -28,7 +28,7 @@ where
     fn into_response(self) -> Response {
         match self.to_xml() {
             Ok(body) => {
-                let headers = [(header::CONTENT_TYPE, "application/xml")];
+                let headers = [(header::CONTENT_TYPE, "application/x-apple-aspen-config")];
                 (headers, body).into_response()
             }
             Err(err) => {

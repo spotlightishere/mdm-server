@@ -1,5 +1,5 @@
 use optional_value::payload;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::PayloadType;
@@ -50,6 +50,12 @@ impl Default for BasePayload {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub enum PayloadScope {
+    System,
+    User,
+}
+
 #[payload]
 /// A profile - the top-level payload, encapsulating all profiles within.
 /// https://developer.apple.com/documentation/devicemanagement/toplevel
@@ -61,6 +67,8 @@ where
     pub base: BasePayload,
     #[serde(rename = "PayloadContent")]
     pub contents: Vec<T>,
+    #[serde(rename = "PayloadScope")]
+    pub scope: Option<PayloadScope>,
 }
 
 impl<T> Default for Profile<T>
@@ -70,6 +78,7 @@ where
     fn default() -> Self {
         Profile {
             base: BasePayload::default(),
+            scope: None,
             contents: vec![],
         }
     }
