@@ -1,5 +1,5 @@
 use crate::app_state::AppState;
-use crate::payloads::{BasePayload, Profile, RootCertificatePayload};
+use crate::payloads::{BasePayload, PayloadType, Profile, RootCertificatePayload};
 use axum::extract::State;
 use axum::response::Response;
 use axum::Json;
@@ -55,6 +55,15 @@ pub async fn create_trust_profile(State(state): State<AppState>) -> Response {
             ..Default::default()
         },
         contents: vec![RootCertificatePayload {
+            base: BasePayload {
+                identifier: format!("{}.trust-profile.root", service_config.base_identifier),
+                display_name: Some(format!(
+                    "Root Certificate for {}",
+                    service_config.organization_name
+                )),
+                payload_type: PayloadType::CertificateRoot,
+                ..Default::default()
+            },
             file_name: "root_ca.pem".to_string(),
             certificate: root_ca_contents,
         }],
