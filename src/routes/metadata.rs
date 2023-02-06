@@ -18,9 +18,9 @@ pub async fn create_service_config(State(state): State<AppState>) -> Json<MDMSer
     let host = &state.config.service.base_domain;
 
     let config = MDMServiceConfig {
-        dep_enrollment_url: format!("https://{}/devicemanagement/mdm/dep_mdm_enroll", host),
-        dep_anchor_certs_url: format!("https://{}/devicemanagement/mdm/dep_anchor_certs", host),
-        trust_profile_url: format!("https://{}/mdm/trust_profile", host),
+        dep_enrollment_url: format!("https://{host}/devicemanagement/mdm/dep_mdm_enroll"),
+        dep_anchor_certs_url: format!("https://{host}/devicemanagement/mdm/dep_anchor_certs"),
+        trust_profile_url: format!("https://{host}/mdm/trust_profile"),
     };
 
     Json(config)

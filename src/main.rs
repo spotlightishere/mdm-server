@@ -9,7 +9,6 @@ mod storage;
 
 use crate::app_state::AppState;
 use crate::config::Config;
-use axum_server;
 use axum_server::tls_rustls::RustlsConfig;
 use std::{env, net::SocketAddr};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};

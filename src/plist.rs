@@ -33,7 +33,7 @@ where
             }
             Err(err) => {
                 // We should not expose this exact error for safety reasons.
-                println!("error within xml plist serialization: {}", err);
+                println!("error within xml plist serialization: {err}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
             }
         }

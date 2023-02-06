@@ -95,10 +95,7 @@ impl X509BuilderHelper for X509Builder {
 }
 
 /// Creates the configured subject via an X509NameBuilder.
-pub fn build_subject(
-    organization_name: &String,
-    common_name: &String,
-) -> Result<X509Name, ErrorStack> {
+pub fn build_subject(organization_name: &str, common_name: &str) -> Result<X509Name, ErrorStack> {
     let mut cert_name = X509NameBuilder::new()?;
     cert_name.append_entry_by_text("O", organization_name)?;
     cert_name.append_entry_by_text("CN", common_name)?;

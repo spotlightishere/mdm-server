@@ -10,7 +10,7 @@ impl Config {
         // as SQLite3 will otherwise manage that for us.
         let storage = &self.storage;
         let database_path = Path::new(&storage.database_path);
-        if database_path.exists() == false {
+        if !database_path.exists() {
             // Create parent directories, if necessary.
             let parents = database_path.parent().unwrap();
             fs::create_dir_all(parents)

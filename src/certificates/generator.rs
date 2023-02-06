@@ -111,7 +111,7 @@ pub fn create_ssl_certificate(
             .build(&cert_builder.x509v3_context(root_issuer, None))?,
     )?;
 
-    cert_builder.sign(&root_key, MessageDigest::sha256())?;
+    cert_builder.sign(root_key, MessageDigest::sha256())?;
     let ssl_cert = cert_builder.build();
 
     Ok((ssl_cert, ssl_key))

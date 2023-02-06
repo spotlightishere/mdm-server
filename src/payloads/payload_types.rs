@@ -8,9 +8,9 @@ pub enum PayloadType {
     CertificateRoot,
 }
 
-impl Into<&str> for PayloadType {
-    fn into(self) -> &'static str {
-        match self {
+impl From<PayloadType> for &str {
+    fn from(value: PayloadType) -> Self {
+        match value {
             PayloadType::Configuration => "Configuration",
             PayloadType::ProfileService => "Profile Service",
             PayloadType::CertificateRoot => "com.apple.security.root",

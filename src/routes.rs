@@ -9,7 +9,7 @@ mod enroll;
 mod metadata;
 
 pub fn create_routes(state: AppState) -> Router {
-    return Router::new()
+    Router::new()
         .route("/", get(|| async { "Hello, world!" }))
         .route("/enroll", get(enroll::generate_enroll_payload))
         .route("/MDMServiceConfig", get(metadata::create_service_config))
@@ -23,5 +23,5 @@ pub fn create_routes(state: AppState) -> Router {
             get(metadata::get_anchor_certs),
         )
         .with_state(state)
-        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
+        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
 }

@@ -32,7 +32,7 @@ impl Certificates {
 
         if !root_ca_key_path.exists() || !root_ca_cert_path.exists() {
             // Generate our root CA if one or the other is missing.
-            let (ca_cert, ca_key) = generator::create_root_certificate(&config)
+            let (ca_cert, ca_key) = generator::create_root_certificate(config)
                 .expect("should be able to generate root CA");
 
             // Finally, write to disk.
@@ -42,7 +42,7 @@ impl Certificates {
 
             // Next, we'll generate our SSL certificate.
             // It should be assumed that a new root CA means a new SSL cert should be issued.
-            let (ssl_cert, ssl_key) = generator::create_ssl_certificate(&config, &ca_cert, &ca_key)
+            let (ssl_cert, ssl_key) = generator::create_ssl_certificate(config, &ca_cert, &ca_key)
                 .expect("should be able to generate SSL certificate");
             ssl_cert.write_cert_pem(&ssl_cert_path);
             ssl_key.write_key_pem(&ssl_key_path);
@@ -62,8 +62,8 @@ impl Certificates {
         let ssl_key = &self.ssl_key;
         let empty_certs = Stack::new().expect("should be able to create certificate stack");
         let signed_contents = Pkcs7::sign(
-            &ssl_cert,
-            &ssl_key,
+            ssl_cert,
+            ssl_key,
             &empty_certs,
             &unsigned_contents,
             Pkcs7Flags::BINARY,
@@ -81,7 +81,7 @@ impl Certificates {
             Ok(body) => body,
             Err(err) => {
                 // We should not expose this exact error for safety reasons.
-                println!("error within xml plist serialization: {}", err);
+                println!("error within xml plist serialization: {err}");
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
                     .into_response();
             }
