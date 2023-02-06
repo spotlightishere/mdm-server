@@ -1,5 +1,5 @@
-mod certificates;
+mod certs;
 mod file;
 mod generator;
 
-pub use certificates::Certificates;
+pub use certs::Certificates;
