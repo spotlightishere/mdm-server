@@ -12,10 +12,8 @@ use openssl::{
 };
 use serde::Serialize;
 
-use self::file::{PrivateKeyStorage, X509Storage};
-
-mod file;
-mod generator;
+use super::file::{PrivateKeyStorage, X509Storage};
+use super::generator;
 
 /// Manages certificate generation and signing.
 #[derive(Clone, Debug)]
