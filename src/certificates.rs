@@ -1,5 +1,5 @@
-use crate::config::Config;
 use crate::plist::Plist;
+use crate::{app_state::AppState, config::Config};
 use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
@@ -94,5 +94,12 @@ impl Certificates {
 
         let headers = [(header::CONTENT_TYPE, "application/x-apple-aspen-config")];
         (headers, signed_profile).into_response()
+    }
+}
+
+impl AppState {
+    // Signs a profile with the current SSL certificate.
+    pub fn serve_profile<T: Serialize>(&self, profile: T) -> Response {
+        self.certificates.sign_profile(profile)
     }
 }
