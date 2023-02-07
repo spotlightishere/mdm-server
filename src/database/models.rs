@@ -1,5 +1,5 @@
-use chrono::NaiveDateTime;
 use diesel::prelude::*;
+use time::OffsetDateTime;
 
 #[derive(Queryable)]
 pub struct Device {
@@ -8,5 +8,5 @@ pub struct Device {
     pub product: String,
     pub serial_number: String,
     pub imei: Option<String>,
-    pub last_contact: NaiveDateTime,
+    pub last_contact: OffsetDateTime,
 }
