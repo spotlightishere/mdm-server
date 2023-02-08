@@ -13,3 +13,12 @@ diesel::table! {
         last_contact -> TimestamptzSqlite,
     }
 }
+
+diesel::table! {
+    pending_enrollments (challenge) {
+        challenge -> Text,
+        creation_date -> TimestamptzSqlite,
+    }
+}
+
+diesel::allow_tables_to_appear_in_same_query!(devices, pending_enrollments,);

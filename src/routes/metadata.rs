@@ -72,10 +72,3 @@ pub async fn create_trust_profile(State(state): State<AppState>) -> Response {
 
     state.serve_profile(trust_profile)
 }
-
-pub async fn begin_enrollment() -> Json<Vec<String>> {
-    // TODO(spotlightishere): Implement
-    // https://developer.apple.com/documentation/devicemanagement/implementing_device_management/simplifying_mdm_server_administration_for_ios_devices
-    let certificates = vec!["todo".to_string()];
-    Json(certificates)
-}

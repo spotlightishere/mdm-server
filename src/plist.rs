@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 /// An XML property list formatted reply.
 pub struct Plist<T>(pub T);
@@ -12,12 +12,21 @@ impl<T> Plist<T>
 where
     T: Serialize,
 {
-    pub fn to_xml(self) -> Result<Vec<u8>, plist::Error> {
+    pub fn to_xml(&self) -> Result<Vec<u8>, plist::Error> {
         let mut body = Vec::new();
         match plist::to_writer_xml(&mut body, &self.0) {
             Ok(_) => Ok(body),
             Err(err) => Err(err),
         }
+    }
+}
+
+impl<T> Plist<T>
+where
+    T: DeserializeOwned,
+{
+    pub fn from_xml(body: Vec<u8>) -> Result<T, plist::Error> {
+        plist::from_bytes(body.as_slice())
     }
 }
 
