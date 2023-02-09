@@ -6,6 +6,7 @@ pub enum PayloadType {
     Configuration,
     ProfileService,
     CertificateRoot,
+    Scep,
 }
 
 impl From<PayloadType> for &str {
@@ -14,6 +15,7 @@ impl From<PayloadType> for &str {
             PayloadType::Configuration => "Configuration",
             PayloadType::ProfileService => "Profile Service",
             PayloadType::CertificateRoot => "com.apple.security.root",
+            PayloadType::Scep => "com.apple.security.scep",
         }
     }
 }

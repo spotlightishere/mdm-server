@@ -2,12 +2,11 @@ use crate::app_state::AppState;
 use crate::certificates::{Pkcs7Body, Pkcs7Signer};
 use crate::database::pending_enrollments::dsl::*;
 use crate::database::{pending_enrollments, PendingEnrollment};
-use crate::payloads::PayloadType;
+use crate::payloads::{BasePayload, PayloadType, Profile, ScepPayload, ScepPayloadContents};
 use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use diesel::query_dsl::*;
 use diesel::ExpressionMethods;
@@ -110,25 +109,18 @@ pub struct EnrollRequest {
     pub device_version: String,
 }
 
+/// Responds to a request to begin enrollment.
+/// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html#//apple_ref/doc/uid/TP40009505-CH2-SW17
 pub async fn begin_enrollment(
     State(state): State<AppState>,
     Pkcs7Body(issuer, contents): Pkcs7Body<EnrollRequest>,
 ) -> Response {
-    // TODO(spotlightishere): Implement
-    // https://developer.apple.com/documentation/devicemanagement/implementing_device_management/simplifying_mdm_server_administration_for_ios_devices
-    match issuer {
-        Pkcs7Signer::Apple => {
-            println!("Issued by Apple");
-        }
-        Pkcs7Signer::Ourselves => {
-            println!("Issued by ourself");
-        }
-    }
-    println!("Parsed contents: {contents:?}");
+    let service_config = &state.config.service;
 
+    // Ensure we have a pending challenge based on specification.
     let connection = &mut state.database.connection();
     let results = pending_enrollments
-        .filter(challenge.eq(contents.challenge))
+        .filter(challenge.eq(&contents.challenge))
         .limit(1)
         .load::<PendingEnrollment>(connection)
         .expect("can query devices");
@@ -136,6 +128,48 @@ pub async fn begin_enrollment(
         return (StatusCode::UNAUTHORIZED).into_response();
     }
 
-    let certificates = vec!["todo".to_string()];
-    Json(certificates).into_response()
+    // To give an overview, enrollment can go one of two ways:
+    //  - If the supplied PKCS#7 body is signed by Apple, we need to supply SCEP information.
+    //    (This occurs initially, immediately after profile installation.)
+    //  - If the body is signed by our configured root certificate, we give the device its initial profile.
+    //    (This occurs after SCEP provisioning completes.)
+    match issuer {
+        Pkcs7Signer::Apple => {
+            // We'll need to supply a SCEP payload.
+            let profile = Profile {
+                base: BasePayload {
+                    identifier: format!("{}.scep", service_config.base_identifier),
+                    display_name: Some("SCEP Payload".to_string()),
+                    ..Default::default()
+                },
+                contents: vec![ScepPayload {
+                    base: BasePayload {
+                        identifier: format!("{}.scep.config", service_config.base_identifier),
+                        payload_type: PayloadType::Scep,
+                        ..Default::default()
+                    },
+                    contents: ScepPayloadContents {
+                        // We'll reuse the challenge from MDM.
+                        challenge: contents.challenge,
+                        key_type: "RSA".to_string(),
+                        key_usage: 5,
+                        key_size: 2048,
+                        name: format!("{} Root CA", service_config.organization_name),
+                        subject: "/C=US/O=TODO/CN=todo.please.ignore".to_string(),
+                        // /cgi-bin/pkiclient.exe seems to be standard.
+                        url: format!(
+                            "https://{}/cgi-bin/pkiclient.exe",
+                            service_config.base_domain
+                        ),
+                    },
+                }],
+                ..Default::default()
+            };
+            state.serve_profile(profile)
+        }
+        Pkcs7Signer::Ourselves => {
+            println!("Issued by our root CA");
+            "TODO".to_string().into_response()
+        }
+    }
 }
