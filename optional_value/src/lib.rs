@@ -6,7 +6,11 @@ use syn::{parse_quote, Attribute};
 /// It then tacks on our custom serde serializers to every field with a type of Option<T>.
 /// For more information on why this is necessary, refer to README.md.
 pub fn payload(_metadata: TokenStream, item: TokenStream) -> TokenStream {
-    let mut ast: syn::DeriveInput = syn::parse(item).unwrap();
+    let Ok(mut ast) = syn::parse::<syn::DeriveInput>(item.clone()) else {
+        // If we can't parse, something else is awry.
+        // Let the compiler show a proper error.
+        return item;
+    };
 
     // We only want to handle having CustomOptional on structs.
     let syn::Data::Struct(ref old_struct) = ast.data else {
