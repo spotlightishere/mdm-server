@@ -27,6 +27,8 @@ impl Certificates {
     pub fn load_certs(config: &Config) -> Self {
         let root_ca_cert_path = config.certificate_path("root_ca_cert.pem");
         let root_ca_key_path = config.certificate_path("root_ca_key.pem");
+        let device_ca_cert_path = config.certificate_path("device_ca_cert.pem");
+        let device_ca_key_path = config.certificate_path("device_ca_key.pem");
         let ssl_cert_path = config.certificate_path("ssl_cert.pem");
         let ssl_key_path = config.certificate_path("ssl_key.pem");
 
@@ -37,6 +39,10 @@ impl Certificates {
             root_ca.write_signed_cert_pem(&root_ca_cert_path, &root_ca);
             root_ca.write_key_pem(&root_ca_key_path);
 
+            // We'll need our device CA, as well.
+            let device_ca = generator::create_device_ca_certificate(config);
+            device_ca.write_signed_cert_pem(&device_ca_cert_path, &root_ca);
+            device_ca.write_key_pem(&device_ca_key_path);
 
             // Next, we'll generate our SSL certificate, issued by our root CA.
             let ssl_cert = generator::create_ssl_certificate(config);

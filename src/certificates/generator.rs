@@ -49,6 +49,31 @@ pub fn create_root_certificate(config: &Config) -> Certificate {
     Certificate::from_params(cert_params).expect("should be able to generate root CA certificate")
 }
 
+/// Generates a CA suitable for signing device certificates.
+pub fn create_device_ca_certificate(config: &Config) -> Certificate {
+    let mut cert_params = CertificateParams::default();
+
+    // Similar to our root certificate, a validity of 10 years suits our needs.
+    cert_params.set_days_valid(3650);
+    cert_params.key_pair = create_rsa_keypair();
+    cert_params.alg = &rcgen::PKCS_RSA_SHA256;
+
+    // We'll utilize the configured organization name for subject values.
+    let mut cert_name = DistinguishedName::new();
+    cert_name.push(DnType::CommonName, &config.service.device_ca_name);
+    cert_name.push(DnType::OrganizationName, &config.service.organization_name);
+    cert_params.distinguished_name = cert_name;
+
+    // Ensure we can be used as a certificate authority.
+    // We do not want any intermediate certificates underneath us.
+    cert_params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
+    // We'll also need to be permitted for S/MIME signing.
+    cert_params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
+    cert_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::EmailProtection];
+
+    Certificate::from_params(cert_params).expect("should be able to generate device CA certificate")
+}
+
 /// Generates a general SSL certificate for the configured base domain.
 pub fn create_ssl_certificate(config: &Config) -> Certificate {
     let mut cert_params = CertificateParams::default();
