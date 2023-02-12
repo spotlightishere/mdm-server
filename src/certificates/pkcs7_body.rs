@@ -8,12 +8,10 @@ use axum::{
 use openssl::{
     error::ErrorStack,
     pkcs7::{Pkcs7, Pkcs7Flags},
-    stack::Stack,
-    x509::{store::X509StoreBuilder, verify::X509VerifyFlags},
 };
 use serde::de::DeserializeOwned;
 
-use super::apple_device_ca::{apple_iphone_ca, apple_iphone_device_ca, apple_root_ca};
+use super::apple_certs::AppleCerts;
 use crate::{app_state::AppState, plist::Plist};
 
 /// The signer of the parsed PKCS#7 envelope.
@@ -80,22 +78,8 @@ where
 /// Determine whether this envelope was issued by the Apple iPhone Device CA.
 fn apple_ca_issued(envelope: &Pkcs7, sealed_contents: &mut Vec<u8>) -> Result<(), ErrorStack> {
     // Apple's envelope should only be signed by their "Apple iPhone Device CA".
-    let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
-    ca_stack.push(apple_iphone_device_ca())?;
-
-    // We need to create a X509 store with Apple's three issuing CAs.
-    let mut ca_store = X509StoreBuilder::new()?;
-    ca_store.add_cert(apple_iphone_device_ca())?;
-    ca_store.add_cert(apple_iphone_ca())?;
-    ca_store.add_cert(apple_root_ca())?;
-
-    // Then, we must disable its certificate date validity.
-    //
-    // Apple writes within "Creating a Profile Server for Over-The-Air Enrollment and Configuration":
-    // "WARNING: When device certificates signed 'Apple iPhone Device CA' are evaluated
-    // their validity dates should be ignored."
-    ca_store.set_flags(X509VerifyFlags::NO_CHECK_TIME)?;
-    let ca_store = ca_store.build();
+    let ca_stack = AppleCerts::cert_stack()?;
+    let ca_store = AppleCerts::cert_store()?;
 
     // We utilize Pkcs7Flags::NOCHAIN because Apple's certificate
     // does not have S/MIME present under X509v3 Key Usage.
@@ -118,17 +102,10 @@ where
     S: Send + Sync,
     AppState: FromRef<S>,
 {
-    let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
-
     // We'll need to extract our certificate.
     let state = AppState::from_ref(state);
-    let root_certificate = state.certificates.root_ca_cert;
-    ca_stack.push(root_certificate.to_owned())?;
-
-    // We'll also need to add our CA to the verification chain.
-    let mut ca_store = X509StoreBuilder::new()?;
-    ca_store.add_cert(root_certificate)?;
-    let ca_store = ca_store.build();
+    let ca_stack = state.certificates.device_ca_stack()?;
+    let ca_store = state.certificates.device_ca_store()?;
 
     // Verify!
     envelope.verify(

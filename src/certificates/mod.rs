@@ -1,4 +1,4 @@
-mod apple_device_ca;
+mod apple_certs;
 mod certs;
 mod file;
 mod generator;

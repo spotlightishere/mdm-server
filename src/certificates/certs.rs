@@ -4,11 +4,12 @@ use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
+use openssl::error::ErrorStack;
 use openssl::{
     pkcs7::{Pkcs7, Pkcs7Flags},
     pkey::{PKey, Private},
     stack::Stack,
-    x509::X509,
+    x509::{store::X509Store, store::X509StoreBuilder, X509},
 };
 use serde::Serialize;
 
@@ -19,6 +20,8 @@ use super::generator;
 #[derive(Clone, Debug)]
 pub struct Certificates {
     pub root_ca_cert: X509,
+    pub device_ca_cert: X509,
+    pub device_ca_key: PKey<Private>,
     pub ssl_cert: X509,
     pub ssl_key: PKey<Private>,
 }
@@ -53,9 +56,28 @@ impl Certificates {
         // Load our certificates, and then we're all set!
         Certificates {
             root_ca_cert: X509::read_cert_pem(&root_ca_cert_path),
+            device_ca_cert: X509::read_cert_pem(&device_ca_cert_path),
+            device_ca_key: PKey::<Private>::read_key_pem(&device_ca_key_path),
             ssl_cert: X509::read_cert_pem(&ssl_cert_path),
             ssl_key: PKey::<Private>::read_key_pem(&ssl_key_path),
         }
+    }
+
+    /// An OpenSSL certificate stack containing our device CA.
+    pub fn device_ca_stack(&self) -> Result<Stack<X509>, ErrorStack> {
+        let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
+        ca_stack.push(self.root_ca_cert.to_owned())?;
+
+        Ok(ca_stack)
+    }
+
+    /// An OpenSSL certificate store containing our device and root CAs.
+    pub fn device_ca_store(&self) -> Result<X509Store, ErrorStack> {
+        let mut ca_store = X509StoreBuilder::new()?;
+        ca_store.add_cert(self.device_ca_cert.clone())?;
+        ca_store.add_cert(self.root_ca_cert.clone())?;
+        let ca_store = ca_store.build();
+        Ok(ca_store)
     }
 
     /// Data signed by the configured SSL certificate, in PKCS#7 format.

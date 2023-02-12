@@ -154,7 +154,7 @@ pub async fn begin_enrollment(
                         key_type: "RSA".to_string(),
                         key_usage: 5,
                         key_size: 2048,
-                        name: service_config.root_ca_name.clone(),
+                        name: service_config.device_ca_name.clone(),
                         subject: "/C=US/O=TODO/CN=todo.please.ignore".to_string(),
                         // /cgi-bin/pkiclient.exe seems to be standard.
                         url: format!(
