@@ -12,7 +12,7 @@ use openssl::{
 };
 use serde::Serialize;
 
-use super::file::{PrivateKeyStorage, X509Storage};
+use super::file::{CertificateStorage, PrivateKeyStorage, X509Storage};
 use super::generator;
 
 /// Manages certificate generation and signing.
@@ -32,20 +32,16 @@ impl Certificates {
 
         if !root_ca_key_path.exists() || !root_ca_cert_path.exists() {
             // Generate our root CA if one or the other is missing.
-            let (ca_cert, ca_key) = generator::create_root_certificate(config)
-                .expect("should be able to generate root CA");
+            let root_ca = generator::create_root_certificate(config);
+            // We sign ourselves.
+            root_ca.write_signed_cert_pem(&root_ca_cert_path, &root_ca);
+            root_ca.write_key_pem(&root_ca_key_path);
 
-            // Finally, write to disk.
-            // We'll read these back in a second.
-            ca_cert.write_cert_pem(&root_ca_cert_path);
-            ca_key.write_key_pem(&root_ca_key_path);
 
-            // Next, we'll generate our SSL certificate.
-            // It should be assumed that a new root CA means a new SSL cert should be issued.
-            let (ssl_cert, ssl_key) = generator::create_ssl_certificate(config, &ca_cert, &ca_key)
-                .expect("should be able to generate SSL certificate");
-            ssl_cert.write_cert_pem(&ssl_cert_path);
-            ssl_key.write_key_pem(&ssl_key_path);
+            // Next, we'll generate our SSL certificate, issued by our root CA.
+            let ssl_cert = generator::create_ssl_certificate(config);
+            ssl_cert.write_signed_cert_pem(&ssl_cert_path, &root_ca);
+            ssl_cert.write_key_pem(&ssl_key_path);
         }
 
         // Load our certificates, and then we're all set!

@@ -14,6 +14,8 @@ toml = "0.7"
 diesel = { version = "2.0", features = ["r2d2", "sqlite", "time", "uuid"] }
 uuid = { version = "1.3", features = ["serde", "v4"] }
 rand = "0.8"
+rcgen = { version = "0.10", features = ["x509-parser"] }
+rsa = "0.8"
 tower = "0.4"
 tower-http = { version = "0.3", features = ["trace"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

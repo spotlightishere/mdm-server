@@ -21,11 +21,20 @@ base_domain = "mdm.corp.example.com"
 #
 # Format example: com.example.corp.mdm
 base_identifier = "com.example.corp.mdm"
-# The name of your organization. This will also be used for
-# your MDM root CA - "<organization> Root CA".
+# The name of your organization. This will be displayed
+# as the organization on all profiles, and used on certificates.
 #
 # Format example: "Contoso Corporation"
 organization_name = "Contoso Corporation"
+# The name of your root CA, used to issue SSL and device CA.
+#
+# If not specified, it defaults to "{org_name} Root CA".
+#root_ca_name = "Contoso Corporation Root CA"
+# The name of your device CA, used for device communication.
+#
+# If not specified, it defaults to "{org_name} Device CA".
+#device_ca_name = "Contoso Corporation Device CA"
+
 
 [storage]
 # The path where to store the SQLite3 database.
