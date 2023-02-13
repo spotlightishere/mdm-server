@@ -68,7 +68,10 @@ pub fn create_device_ca_certificate(config: &Config) -> Certificate {
     // We do not want any intermediate certificates underneath us.
     cert_params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
     // We'll also need to be permitted for S/MIME signing.
-    cert_params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
+    cert_params.key_usages = vec![
+        KeyUsagePurpose::DigitalSignature,
+        KeyUsagePurpose::KeyEncipherment,
+    ];
     cert_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::EmailProtection];
 
     Certificate::from_params(cert_params).expect("should be able to generate device CA certificate")
