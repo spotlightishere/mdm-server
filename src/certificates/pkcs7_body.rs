@@ -59,10 +59,10 @@ where
         let raw_contents = &mut Vec::new();
         let issuer = if apple_ca_issued(&envelope, raw_contents).is_ok() {
             Pkcs7Signer::Apple
-        } else if our_root_ca_issued(&envelope, state, raw_contents).is_ok() {
+        } else if our_device_ca_issued(&envelope, state, raw_contents).is_ok() {
             Pkcs7Signer::Ourselves
         } else {
-            // Don't hint that anything certificate-related
+            // Don't hint that anything certificate-related failed.
             return Err((StatusCode::UNAUTHORIZED).into_response());
         };
 
@@ -92,8 +92,8 @@ fn apple_ca_issued(envelope: &Pkcs7, sealed_contents: &mut Vec<u8>) -> Result<()
     )
 }
 
-/// Determine whether this envelope was issued by our configured root certificate.
-fn our_root_ca_issued<S>(
+/// Determine whether this envelope was issued by our configured device certificate.
+fn our_device_ca_issued<S>(
     envelope: &Pkcs7,
     state: &S,
     sealed_contents: &mut Vec<u8>,

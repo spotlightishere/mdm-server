@@ -66,7 +66,7 @@ impl Certificates {
     /// An OpenSSL certificate stack containing our device CA.
     pub fn device_ca_stack(&self) -> Result<Stack<X509>, ErrorStack> {
         let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
-        ca_stack.push(self.root_ca_cert.to_owned())?;
+        ca_stack.push(self.device_ca_cert.to_owned())?;
 
         Ok(ca_stack)
     }
