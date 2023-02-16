@@ -3,6 +3,7 @@ use crate::certificates::{Pkcs7Body, Pkcs7Signer};
 use crate::database::pending_enrollments::dsl::*;
 use crate::database::{pending_enrollments, PendingEnrollment};
 use crate::payloads::{BasePayload, PayloadType, Profile, ScepPayload, ScepPayloadContents};
+use crate::plist::Plist;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -111,11 +112,14 @@ pub struct EnrollRequest {
 
 /// Responds to a request to begin enrollment.
 /// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html#//apple_ref/doc/uid/TP40009505-CH2-SW17
-pub async fn begin_enrollment(
-    State(state): State<AppState>,
-    Pkcs7Body(issuer, contents): Pkcs7Body<EnrollRequest>,
-) -> Response {
+pub async fn begin_enrollment(State(state): State<AppState>, envelope: Pkcs7Body) -> Response {
     let service_config = &state.config.service;
+
+    // Now that Pkcs7Body has determined the issuer and have extracted
+    // its contents, we can deserialize and handle based on issuer.
+    let Ok(contents) = Plist::<EnrollRequest>::from_xml(envelope.contents) else {
+        return (StatusCode::BAD_REQUEST).into_response();
+    };
 
     // Ensure we have a pending challenge based on specification.
     let connection = &mut state.database.connection();
@@ -133,7 +137,7 @@ pub async fn begin_enrollment(
     //    (This occurs initially, immediately after profile installation.)
     //  - If the body is signed by our configured root certificate, we give the device its initial profile.
     //    (This occurs after SCEP provisioning completes.)
-    match issuer {
+    match envelope.signer {
         Pkcs7Signer::Apple => {
             // We'll need to supply a SCEP payload.
             let profile = Profile {

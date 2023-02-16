@@ -67,6 +67,7 @@ where
 }
 
 pub trait CertificateParamsHelper {
+    /// Sets the amount of days this certificate should be valid for.
     fn set_days_valid(&mut self, days: i64);
 }
 
