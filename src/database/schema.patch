@@ -1,0 +1,8 @@
+--- a/src/database/schema.rs
++++ b/src/database/schema.rs
+@@ -10 +10 @@ diesel::table! {
+-        last_contact -> Timestamp,
++        last_contact -> TimestamptzSqlite,
+@@ -17 +17 @@ diesel::table! {
+-        creation_date -> Timestamp,
++        creation_date -> TimestamptzSqlite,
