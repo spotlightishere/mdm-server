@@ -1,8 +1,8 @@
 use axum::{
     async_trait,
     body::Bytes,
-    extract::{FromRef, FromRequest},
-    http::{Request, StatusCode},
+    extract::{FromRef, FromRequest, Request},
+    http::StatusCode,
 };
 use openssl::{
     error::ErrorStack,
@@ -26,16 +26,15 @@ pub struct Pkcs7Body {
 }
 
 #[async_trait]
-impl<S, B> FromRequest<S, B> for Pkcs7Body
+impl<S> FromRequest<S> for Pkcs7Body
 where
-    Bytes: FromRequest<S, B>,
-    B: Send + 'static,
+    Bytes: FromRequest<S>,
     S: Send + Sync,
     AppState: FromRef<S>,
 {
     type Rejection = StatusCode;
 
-    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         // Before we read the body, let's check the content type header.
         // Although this provides no security, it helps to stop invalid requests.
         let Some(content_type) = req.headers().get("Content-Type") else {
@@ -67,7 +66,7 @@ where
         let mut contents = Vec::new();
         let signer = if envelope.apple_ca_issued(&mut contents).is_ok() {
             Pkcs7Signer::Apple
-        } else if envelope.our_device_ca_issued(&state, &mut contents).is_ok() {
+        } else if envelope.our_device_ca_issued(state, &mut contents).is_ok() {
             Pkcs7Signer::Ourselves
         } else {
             // Don't hint that anything certificate-related failed.
