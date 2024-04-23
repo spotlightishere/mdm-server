@@ -2,30 +2,26 @@ use openssl::{
     pkey::{HasPrivate, PKey, Private},
     x509::X509,
 };
-use rcgen::{Certificate, CertificateParams};
+use rcgen::{Certificate, CertificateParams, KeyPair};
 use std::path::Path;
 use time::{Duration, OffsetDateTime};
 
 pub trait CertificateStorage {
-    /// Writes this private key to the given path, in PEM format.
-    fn write_key_pem(&self, key_path: &Path);
-
-    /// Signs and writes this public certificate to the given path, in PEM format.
-    fn write_signed_cert_pem(&self, key_path: &Path, signer: &Certificate);
+    /// Serializes this certificate or key to the given path, in PEM format.
+    fn write_pem(&self, key_path: &Path);
 }
 
 impl CertificateStorage for Certificate {
-    fn write_key_pem(&self, key_path: &Path) {
-        let priv_contents = self.get_key_pair().serialize_pem();
-        std::fs::write(key_path, priv_contents).expect("should be able to write private key");
+    fn write_pem(&self, key_path: &Path) {
+        let cert_contents = self.pem();
+        std::fs::write(key_path, cert_contents).expect("should be able to write CA certificate");
     }
+}
 
-    fn write_signed_cert_pem(&self, key_path: &Path, signer: &Certificate) {
-        let signed_pub_contents = self
-            .serialize_pem_with_signer(signer)
-            .expect("should be able to sign public key");
-
-        std::fs::write(key_path, signed_pub_contents).expect("should be able to write public key");
+impl CertificateStorage for KeyPair {
+    fn write_pem(&self, key_path: &Path) {
+        let key_contents = self.serialize_pem();
+        std::fs::write(key_path, key_contents).expect("should be able to write private key");
     }
 }
 

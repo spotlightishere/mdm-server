@@ -13,7 +13,7 @@ use openssl::{
 };
 use serde::Serialize;
 
-use super::file::{CertificateStorage, PrivateKeyStorage, X509Storage};
+use super::file::{PrivateKeyStorage, X509Storage};
 use super::generator;
 
 /// Manages certificate generation and signing.
@@ -36,21 +36,8 @@ impl Certificates {
         let ssl_key_path = config.certificate_path("ssl_key.pem");
 
         if !root_ca_key_path.exists() || !root_ca_cert_path.exists() {
-            // Generate our root CA if one or the other is missing.
-            let root_ca = generator::create_root_certificate(config);
-            // We sign ourselves.
-            root_ca.write_signed_cert_pem(&root_ca_cert_path, &root_ca);
-            root_ca.write_key_pem(&root_ca_key_path);
-
-            // We'll need our device CA, as well.
-            let device_ca = generator::create_device_ca_certificate(config);
-            device_ca.write_signed_cert_pem(&device_ca_cert_path, &root_ca);
-            device_ca.write_key_pem(&device_ca_key_path);
-
-            // Next, we'll generate our SSL certificate, issued by our root CA.
-            let ssl_cert = generator::create_ssl_certificate(config);
-            ssl_cert.write_signed_cert_pem(&ssl_cert_path, &root_ca);
-            ssl_cert.write_key_pem(&ssl_key_path);
+            // Regenerate all of our CA certificates.
+            generator::issue_ca_certificates(config);
         }
 
         // Load our certificates, and then we're all set!

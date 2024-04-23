@@ -1,39 +1,26 @@
-use rand::rngs;
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
-    ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, SanType,
+    ExtendedKeyUsagePurpose, Ia5String, IsCa, KeyPair, KeyUsagePurpose, RsaKeySize, SanType,
 };
-use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
 
-use super::file::CertificateParamsHelper;
+use super::file::{CertificateParamsHelper, CertificateStorage};
 use crate::config::Config;
 
 /// Generates a 2048-bit RSA key.
 ///
 /// Apple writes, in many places throughout MDM documentation, that
 /// 2048-bit keys are highly encouraged for compatability.
-fn create_rsa_keypair() -> Option<KeyPair> {
-    // Due to https://github.com/briansmith/ring/pull/733 we cannot utilize
-    // rcgen::KeyPair directly for RSA.
-    // We use rsa::RsaPrivateKey instead, converting to DER, and parsing again.
-    let private_key =
-        RsaPrivateKey::new(&mut rngs::OsRng, 2048).expect("should be able to generate private key");
-    let der_form = private_key
-        .to_pkcs8_der()
-        .expect("should be able to convert private key to DER");
-    let keypair =
-        rcgen::KeyPair::from_der(der_form.as_bytes()).expect("should be able to parse key");
-    Some(keypair)
+fn create_rsa_keypair() -> KeyPair {
+    KeyPair::generate_rsa_for(&rcgen::PKCS_RSA_SHA256, RsaKeySize::_2048)
+        .expect("should be able to generate RSA private key")
 }
 
 /// Generates a root CA certificate.
-pub fn create_root_certificate(config: &Config) -> Certificate {
+fn create_root_cert_params(config: &Config) -> CertificateParams {
     let mut cert_params = CertificateParams::default();
 
     // For our root certificate, a validity of 10 years suits our needs.
     cert_params.set_days_valid(3650);
-    cert_params.key_pair = create_rsa_keypair();
-    cert_params.alg = &rcgen::PKCS_RSA_SHA256;
 
     // We'll utilize the configured organization name for subject values.
     let mut cert_name = DistinguishedName::new();
@@ -45,18 +32,15 @@ pub fn create_root_certificate(config: &Config) -> Certificate {
     // We only want one intermediate certificate.
     cert_params.is_ca = IsCa::Ca(BasicConstraints::Constrained(1));
     cert_params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
-
-    Certificate::from_params(cert_params).expect("should be able to generate root CA certificate")
+    cert_params
 }
 
-/// Generates a CA suitable for signing device certificates.
-pub fn create_device_ca_certificate(config: &Config) -> Certificate {
+/// Generates CA parameters suitable for signing device certificates.
+fn create_device_cert_params(config: &Config) -> CertificateParams {
     let mut cert_params = CertificateParams::default();
 
     // Similar to our root certificate, a validity of 10 years suits our needs.
     cert_params.set_days_valid(3650);
-    cert_params.key_pair = create_rsa_keypair();
-    cert_params.alg = &rcgen::PKCS_RSA_SHA256;
 
     // We'll utilize the configured organization name for subject values.
     let mut cert_name = DistinguishedName::new();
@@ -73,12 +57,11 @@ pub fn create_device_ca_certificate(config: &Config) -> Certificate {
         KeyUsagePurpose::KeyEncipherment,
     ];
     cert_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::EmailProtection];
-
-    Certificate::from_params(cert_params).expect("should be able to generate device CA certificate")
+    cert_params
 }
 
 /// Generates a general SSL certificate for the configured base domain.
-pub fn create_ssl_certificate(config: &Config) -> Certificate {
+fn create_ssl_cert_params(config: &Config) -> CertificateParams {
     let mut cert_params = CertificateParams::default();
 
     // We'll set our domain name as the CN.
@@ -87,22 +70,69 @@ pub fn create_ssl_certificate(config: &Config) -> Certificate {
     cert_name.push(DnType::OrganizationName, &config.service.organization_name);
     cert_params.distinguished_name = cert_name;
 
+    let base_domain = Ia5String::try_from(config.service.base_domain.clone())
+        .expect("should be able to format base domain for SSL certificate");
+
     // For our SSL certificate, its validity cannot exceed 825 days
     // if we want any modern Apple platform to mark it as valid.
     // For more information: https://support.apple.com/en-us/HT210176
     cert_params.set_days_valid(825);
     // Per Apple, we must have id-kp-serverAuth applied.
     cert_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
-    cert_params.subject_alt_names = vec![SanType::DnsName(config.service.base_domain.clone())];
+    cert_params.subject_alt_names = vec![SanType::DnsName(base_domain)];
     cert_params.key_usages = vec![
         KeyUsagePurpose::DigitalSignature,
         KeyUsagePurpose::DigitalSignature,
         KeyUsagePurpose::KeyEncipherment,
     ];
 
-    cert_params.key_pair = create_rsa_keypair();
-    cert_params.alg = &rcgen::PKCS_RSA_SHA256;
     cert_params.use_authority_key_identifier_extension = true;
+    cert_params
+}
 
-    Certificate::from_params(cert_params).expect("should be able to generate SSL certificate")
+pub fn issue_ca_certificates(config: &Config) {
+    // TODO(spotlightishere): All of these paths are within Certificates::load_certs as well.
+    // Can we somehow consolidate the two?
+    let root_ca_cert_path = config.certificate_path("root_ca_cert.pem");
+    let root_ca_key_path = config.certificate_path("root_ca_key.pem");
+    let device_ca_cert_path = config.certificate_path("device_ca_cert.pem");
+    let device_ca_key_path = config.certificate_path("device_ca_key.pem");
+    let ssl_cert_path = config.certificate_path("ssl_cert.pem");
+    let ssl_key_path = config.certificate_path("ssl_key.pem");
+
+    // We need to issue three separate certificate types.
+    // TODO(spotlightishere): Can we consolidate the signature process somehow?
+
+    /////////////////////////
+    // Root CA certificate //
+    /////////////////////////
+    let root_ca_key = &create_rsa_keypair();
+    let root_ca_cert = create_root_cert_params(config)
+        .self_signed(root_ca_key)
+        .expect("should be able to issue root CA certificate");
+    // We sign ourselves.
+    root_ca_cert.write_pem(&root_ca_cert_path);
+    root_ca_key.write_pem(&root_ca_key_path);
+
+    ///////////////
+    // Device CA //
+    ///////////////
+    // Next, we'll need our device CA, issued by our root CA.
+    let device_ca_key = &create_rsa_keypair();
+    let device_ca_cert = create_device_cert_params(config)
+        .signed_by(device_ca_key, &root_ca_cert, root_ca_key)
+        .expect("should be able to issue device CA certificate");
+    device_ca_cert.write_pem(&device_ca_cert_path);
+    device_ca_key.write_pem(&device_ca_key_path);
+
+    /////////////////////
+    // SSL certificate //
+    /////////////////////
+    // Lastly, we'll generate our SSL certificate. It's similarly issued by our root CA.
+    let ssl_key = &create_rsa_keypair();
+    let ssl_cert = create_ssl_cert_params(config)
+        .signed_by(ssl_key, &root_ca_cert, root_ca_key)
+        .expect("should be able to issue SSL certificate");
+    ssl_cert.write_pem(&ssl_cert_path);
+    ssl_key.write_pem(&ssl_key_path);
 }
