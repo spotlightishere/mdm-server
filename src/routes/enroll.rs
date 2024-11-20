@@ -156,10 +156,17 @@ pub async fn begin_enrollment(State(state): State<AppState>, envelope: Pkcs7Body
                         // We'll reuse the challenge from MDM.
                         challenge: contents.challenge,
                         key_type: "RSA".to_string(),
+                        // 5 is digital signature (1) + key encipherment (5)
                         key_usage: 5,
                         key_size: 2048,
                         name: service_config.device_ca_name.clone(),
-                        subject: "/C=US/O=TODO/CN=todo.please.ignore".to_string(),
+                        subject: vec![
+                            vec![vec![
+                                "O".to_string(),
+                                service_config.organization_name.clone(),
+                            ]],
+                            vec![vec!["CN".to_string(), service_config.base_domain.clone()]],
+                        ],
                         // /cgi-bin/pkiclient.exe seems to be standard.
                         url: format!(
                             "https://{}/cgi-bin/pkiclient.exe",

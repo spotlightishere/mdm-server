@@ -32,12 +32,37 @@ pub struct ScepPayloadContents {
     #[serde(rename = "Key Usage")]
     pub key_usage: i32,
     #[serde(rename = "Keysize")]
-    // Documented to not allow any size larger than 2048 bits.
+    /// Documented to not allow any size larger than 2048 bits.
     pub key_size: i32,
     #[serde(rename = "Name")]
     pub name: String,
     #[serde(rename = "Subject")]
-    pub subject: String,
+    /// An array of single-element arrays with a single-element array of paired properties.
+    /// For example:
+    ///   `/C=US/1.2.5.3=Howdy!`
+    /// becomes
+    /// ```xml
+    /// <array>
+    ///   <array>
+    ///     <array>
+    ///       <string>C</string>
+    ///       <string>US</string>
+    ///     </array>
+    ///   </array>
+    ///   <array>
+    ///     <array>
+    ///       <string>1.2.5.3</string>
+    ///       <string>Howdy!</string>
+    ///     </array>
+    ///   </array>
+    /// </array>
+    /// ```
+    ///
+    /// There are several shortcuts available for OIDs:
+    /// country (C), locality (L), state (ST), organization (O),
+    /// organizational unit (OU), and common name (CN).
+    // TODO(spotlightishere): It would be nice to make this syntatically nicer.
+    pub subject: Vec<Vec<Vec<String>>>,
     #[serde(rename = "URL")]
     pub url: String,
 }
@@ -51,7 +76,7 @@ impl Default for ScepPayloadContents {
             key_usage: 5,
             key_size: 2048,
             name: "".to_string(),
-            subject: "".to_string(),
+            subject: vec![],
             url: "".to_string(),
         }
     }
