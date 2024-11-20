@@ -1,7 +1,6 @@
 mod apple_certs;
 mod certs;
 mod der_transform;
-mod file;
 mod generator;
 mod pkcs7_body;
 

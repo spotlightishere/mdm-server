@@ -3,8 +3,9 @@ use rcgen::{
     Ia5String, IsCa, KeyPair, KeyUsagePurpose, RsaKeySize, SanType,
 };
 
-use super::file::{CertificateParamsHelper, CertificateStorage};
 use crate::config::Config;
+use std::{fs, path::Path};
+use time::{Duration, OffsetDateTime};
 
 /// Generates a 2048-bit RSA key.
 ///
@@ -111,8 +112,8 @@ pub fn issue_ca_certificates(config: &Config) {
         .self_signed(root_ca_key)
         .expect("should be able to issue root CA certificate");
     // We sign ourselves.
-    CertificateStorage::write_ca_pem(&root_ca_cert, &root_ca_cert_path);
-    CertificateStorage::write_key_pem(root_ca_key, &root_ca_key_path);
+    write_ca_pem(&root_ca_cert, &root_ca_cert_path);
+    write_key_pem(root_ca_key, &root_ca_key_path);
 
     ///////////////
     // Device CA //
@@ -122,8 +123,8 @@ pub fn issue_ca_certificates(config: &Config) {
     let device_ca_cert = create_device_cert_params(config)
         .signed_by(device_ca_key, &root_ca_cert, root_ca_key)
         .expect("should be able to issue device CA certificate");
-    CertificateStorage::write_ca_pem(&device_ca_cert, &device_ca_cert_path);
-    CertificateStorage::write_key_pem(device_ca_key, &device_ca_key_path);
+    write_ca_pem(&device_ca_cert, &device_ca_cert_path);
+    write_key_pem(device_ca_key, &device_ca_key_path);
 
     /////////////////////
     // SSL certificate //
@@ -133,6 +134,31 @@ pub fn issue_ca_certificates(config: &Config) {
     let ssl_cert = create_ssl_cert_params(config)
         .signed_by(ssl_key, &root_ca_cert, root_ca_key)
         .expect("should be able to issue SSL certificate");
-    CertificateStorage::write_ca_pem(&ssl_cert, &ssl_cert_path);
-    CertificateStorage::write_key_pem(ssl_key, &ssl_key_path);
+    write_ca_pem(&ssl_cert, &ssl_cert_path);
+    write_key_pem(ssl_key, &ssl_key_path);
+}
+
+/// Serializes this certificate to the given path in PEM format.
+pub fn write_ca_pem(ca: &rcgen::Certificate, key_path: &Path) {
+    let cert_contents = ca.pem();
+    fs::write(key_path, cert_contents).expect("should be able to write CA certificate");
+}
+
+/// Serializes this RSA key to the given path in PEM format.
+pub fn write_key_pem(key: &KeyPair, key_path: &Path) {
+    let key_contents = key.serialize_pem();
+    fs::write(key_path, key_contents).expect("should be able to write private key");
+}
+
+pub trait CertificateParamsHelper {
+    /// Sets the amount of days this certificate should be valid for.
+    fn set_days_valid(&mut self, days: i64);
+}
+
+impl CertificateParamsHelper for CertificateParams {
+    fn set_days_valid(&mut self, days: i64) {
+        let current_time = OffsetDateTime::now_utc();
+        self.not_before = current_time;
+        self.not_after = current_time + Duration::days(days);
+    }
 }

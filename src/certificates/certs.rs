@@ -10,14 +10,14 @@ use cms::{
     signed_data::{EncapsulatedContentInfo, SignerIdentifier},
 };
 use const_oid::db::{rfc5911, rfc5912};
-use der::{asn1::OctetStringRef, Any, Encode, Tag};
-use rsa::pkcs1v15::SigningKey;
-use rsa::RsaPrivateKey;
+use der::{asn1::OctetStringRef, Any, DecodePem, Encode, Tag};
+use rsa::{pkcs1v15::SigningKey, pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::Serialize;
 use sha1::Sha1;
+use std::fs;
+use std::path::Path;
 use x509_cert::{spki::AlgorithmIdentifierOwned, Certificate};
 
-use super::file::CertificateStorage;
 use super::generator;
 
 /// Manages certificate generation and signing.
@@ -46,11 +46,11 @@ impl Certificates {
 
         // Load our certificates, and then we're all set!
         Certificates {
-            root_ca_cert: CertificateStorage::read_cert_pem(&root_ca_cert_path),
-            device_ca_cert: CertificateStorage::read_cert_pem(&device_ca_cert_path),
-            device_ca_key: CertificateStorage::read_key_pem(&device_ca_key_path),
-            ssl_cert: CertificateStorage::read_cert_pem(&ssl_cert_path),
-            ssl_key: CertificateStorage::read_key_pem(&ssl_key_path),
+            root_ca_cert: read_cert_pem(&root_ca_cert_path),
+            device_ca_cert: read_cert_pem(&device_ca_cert_path),
+            device_ca_key: read_key_pem(&device_ca_key_path),
+            ssl_cert: read_cert_pem(&ssl_cert_path),
+            ssl_key: read_key_pem(&ssl_key_path),
         }
     }
 
@@ -132,4 +132,15 @@ impl AppState {
     pub fn serve_profile<T: Serialize>(&self, profile: T) -> Response {
         self.certificates.sign_profile(profile)
     }
+}
+
+/// Reads a public certificate, in PEM format, from the given path.
+pub fn read_cert_pem(cert_path: &Path) -> Certificate {
+    let cert_contents = fs::read(cert_path).expect("should be able to read certificate");
+    Certificate::from_pem(&cert_contents).expect("should be able to parse certificate")
+}
+
+/// Reads a private key, in PEM format, from the given path.
+pub fn read_key_pem(key_path: &Path) -> RsaPrivateKey {
+    RsaPrivateKey::read_pkcs8_pem_file(key_path).expect("should be able to parse private key")
 }
