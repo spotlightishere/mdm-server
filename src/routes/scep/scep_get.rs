@@ -4,11 +4,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use openssl::{
-    cms::{CMSOptions, CmsContentInfo},
-    pkey::Private,
-    stack::Stack,
-};
+use cms::content_info::ContentInfo;
+use der::Encode;
 use serde::Deserialize;
 
 use crate::app_state::AppState;
@@ -55,33 +52,17 @@ pub async fn get_ca_cert(state: AppState) -> Response {
     // and our intermediate device CA. Due to this, per section 4.2.1.2, multiple
     // sections must respond with a "degenerate certificates-only CMS SignedData message"
     // as defined within section 3.4.
-    let certificates = state.certificates;
-    let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
-    ca_stack
-        .push(certificates.root_ca_cert)
-        .expect("should be able to add root CA certificate to stack");
-    ca_stack
-        .push(certificates.device_ca_cert)
-        .expect("should be able to add device CA certificate to stack");
-
-    // If we specify data of None, or provide an empty array to data,
-    // we encouter an error within `CMS_final`.
-    // To work around this, we specify CMS_PARTIAL.
-    // OpenSSL's docs write that `CMS_final` should be called
-    // to finalize the structure, but it appears to only deal with data
-    // ...which is not ideal, but, avoidable.
     //
-    // TODO: This is horrendous - can we manually encode a PKCS#7/CMS
-    // body?
-    let only_certificates = CmsContentInfo::sign::<Private>(
-        None,
-        None,
-        Some(&ca_stack),
-        None,
-        CMSOptions::NOSIGS | CMSOptions::DETACHED | CMSOptions::PARTIAL,
-    )
-    .expect("should be able to create signatureless CMS envelope");
-    let der_contents = only_certificates
+    // (This is also known as a `.p7b` file.)
+    let certificates = state.certificates;
+
+    // Include our root CA and device CA.
+    let certificate_chain = vec![certificates.root_ca_cert, certificates.device_ca_cert];
+
+    // ContentInfo::from will produce a certificate-only SignedData for us.
+    let content_info =
+        ContentInfo::try_from(certificate_chain).expect("should be able to create CMS envelope");
+    let der_contents = content_info
         .to_der()
         .expect("should be able to encode CMS envelope into DER form");
 
@@ -92,7 +73,7 @@ pub async fn get_ca_cert(state: AppState) -> Response {
         .into_response()
 }
 
-// Aligns with recommendations within section 3.5.2.
+/// Aligns with recommendations within section 3.5.2.
 const CA_CAPS: &str = "\
 AES
 POSTPKIOperation

@@ -3,6 +3,7 @@ use crate::payloads::{BasePayload, PayloadScope, PayloadType, Profile, RootCerti
 use axum::extract::State;
 use axum::response::Response;
 use axum::Json;
+use der::Encode;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -39,7 +40,7 @@ pub async fn create_trust_profile(State(state): State<AppState>) -> Response {
     // Provides the root CA certificate necessary to continue a connection to this server.
     // https://developer.apple.com/documentation/devicemanagement/implementing_device_management/simplifying_mdm_server_administration_for_ios_devices
     let service_config = &state.config.service;
-    let root_ca_contents = state.certificates.root_ca_cert.to_pem().unwrap();
+    let root_ca_contents = state.certificates.root_ca_cert.to_der().unwrap();
 
     let trust_profile = Profile {
         base: BasePayload {

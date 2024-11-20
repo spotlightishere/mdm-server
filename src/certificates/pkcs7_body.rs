@@ -8,7 +8,7 @@ use axum::{
 };
 use cms::{signed_data::SignerIdentifier, signed_data::SignerInfo};
 use der::{asn1::PrintableStringRef, oid::db::rfc4519, referenced::OwnedToRef};
-use x509_cert::attr::AttributeTypeAndValue;
+use x509_cert::{attr::AttributeTypeAndValue, name::RdnSequence};
 
 /// The signer of the parsed PKCS#7 envelope.
 pub enum Pkcs7Signer {
@@ -73,9 +73,10 @@ where
 // TODO(spotlightishere): This is not remotely secure as
 // it only checks the last issuer.
 // DO NOT use this in a production environment.
-fn determine_issuer<S>(state: &S, signer: SignerInfo) -> Option<Pkcs7Signer> where
+fn determine_issuer<S>(state: &S, signer: SignerInfo) -> Option<Pkcs7Signer>
+where
     S: Send + Sync,
-    AppState: FromRef<S>
+    AppState: FromRef<S>,
 {
     let state = AppState::from_ref(state);
 
@@ -84,16 +85,34 @@ fn determine_issuer<S>(state: &S, signer: SignerInfo) -> Option<Pkcs7Signer> whe
     let SignerIdentifier::IssuerAndSerialNumber(issuer) = signer.sid else {
         return None;
     };
+    let purported_cn = get_cert_cn(&issuer.issuer)?;
 
-    // For our intents and purposes, we only have one [`RelativeDistinguishedName`]
-    // which contains only a single [`AttributeTypeAndValue`] within.
+    // We'll now determine what signature to match based on string.
+    let device_ca_cert = state.certificates.device_ca_cert;
+    let local_server_device_cn = get_cert_cn(&device_ca_cert.tbs_certificate.subject)?.to_string();
+    let apple_device_cn = "Apple iPhone Device CA".to_string();
+
+    let (signer, _expected_certificate) = if purported_cn == apple_device_cn {
+        (Pkcs7Signer::Apple, iphone_device_ca())
+    } else if purported_cn == local_server_device_cn {
+        (Pkcs7Signer::Ourselves, device_ca_cert)
+    } else {
+        return None;
+    };
+
+    // TODO(spotlightishere): Perform actual verification
+    println!("Verifying only on name... TODO: please resolve");
+    Some(signer)
+}
+
+/// Attempts to obtain the common name attached to this certificate.
+/// As a commonName is optional, this may not succeed.
+fn get_cert_cn(rds: &RdnSequence) -> Option<String> {
+    // For our intents and purposes with Apple certificates, we only have one
+    // [`RelativeDistinguishedName`] which contains only a single [`AttributeTypeAndValue`] within.
     // However, we'll merge all specified attributes across all given RDNs.
-    let issuer_attributes: Vec<AttributeTypeAndValue> = issuer
-        .issuer
-        .0
-        .iter()
-        .flat_map(|x| x.0.clone().into_vec())
-        .collect();
+    let issuer_attributes: Vec<AttributeTypeAndValue> =
+        rds.0.iter().flat_map(|x| x.0.clone().into_vec()).collect();
 
     // Find our common name.
     let purported_cn = issuer_attributes
@@ -108,15 +127,5 @@ fn determine_issuer<S>(state: &S, signer: SignerInfo) -> Option<Pkcs7Signer> whe
         .decode_as::<PrintableStringRef>()
         .ok()?;
 
-    // We'll now determine what signature to match based on string.
-    let (signer, expected_certificate) = match given_cn_value.as_str() {
-        "Apple iPhone Device CA" => (Pkcs7Signer::Apple, iphone_device_ca()),
-        // This isn't a CN we recognize.
-        // TODO(spotlightishere): MDM server
-        _ => return None,
-    };
-
-    // TODO(spotlightishere): Perform actual verification
-    println!("Verifying only on name... TODO: please resolve");
-    Some(signer)
+    Some(given_cn_value.to_string())
 }

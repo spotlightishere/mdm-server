@@ -4,26 +4,30 @@ use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
-use openssl::error::ErrorStack;
-use openssl::{
-    pkcs7::{Pkcs7, Pkcs7Flags},
-    pkey::{PKey, Private},
-    stack::Stack,
-    x509::{store::X509Store, store::X509StoreBuilder, X509},
+use cms::{
+    builder::{SignedDataBuilder, SignerInfoBuilder},
+    cert::{CertificateChoices, IssuerAndSerialNumber},
+    signed_data::{EncapsulatedContentInfo, SignerIdentifier},
 };
+use const_oid::db::{rfc5911, rfc5912};
+use der::{asn1::OctetStringRef, Any, Encode, Tag};
+use rsa::pkcs1v15::SigningKey;
+use rsa::RsaPrivateKey;
 use serde::Serialize;
+use sha1::Sha1;
+use x509_cert::{spki::AlgorithmIdentifierOwned, Certificate};
 
-use super::file::{PrivateKeyStorage, X509Storage};
+use super::file::CertificateStorage;
 use super::generator;
 
 /// Manages certificate generation and signing.
 #[derive(Clone, Debug)]
 pub struct Certificates {
-    pub root_ca_cert: X509,
-    pub device_ca_cert: X509,
-    pub device_ca_key: PKey<Private>,
-    pub ssl_cert: X509,
-    pub ssl_key: PKey<Private>,
+    pub root_ca_cert: Certificate,
+    pub device_ca_cert: Certificate,
+    pub device_ca_key: RsaPrivateKey,
+    pub ssl_cert: Certificate,
+    pub ssl_key: RsaPrivateKey,
 }
 
 impl Certificates {
@@ -42,48 +46,65 @@ impl Certificates {
 
         // Load our certificates, and then we're all set!
         Certificates {
-            root_ca_cert: X509::read_cert_pem(&root_ca_cert_path),
-            device_ca_cert: X509::read_cert_pem(&device_ca_cert_path),
-            device_ca_key: PKey::<Private>::read_key_pem(&device_ca_key_path),
-            ssl_cert: X509::read_cert_pem(&ssl_cert_path),
-            ssl_key: PKey::<Private>::read_key_pem(&ssl_key_path),
+            root_ca_cert: CertificateStorage::read_cert_pem(&root_ca_cert_path),
+            device_ca_cert: CertificateStorage::read_cert_pem(&device_ca_cert_path),
+            device_ca_key: CertificateStorage::read_key_pem(&device_ca_key_path),
+            ssl_cert: CertificateStorage::read_cert_pem(&ssl_cert_path),
+            ssl_key: CertificateStorage::read_key_pem(&ssl_key_path),
         }
-    }
-
-    /// An OpenSSL certificate stack containing our device CA.
-    pub fn device_ca_stack(&self) -> Result<Stack<X509>, ErrorStack> {
-        let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
-        ca_stack.push(self.device_ca_cert.to_owned())?;
-
-        Ok(ca_stack)
-    }
-
-    /// An OpenSSL certificate store containing our device and root CAs.
-    pub fn device_ca_store(&self) -> Result<X509Store, ErrorStack> {
-        let mut ca_store = X509StoreBuilder::new()?;
-        ca_store.add_cert(self.device_ca_cert.clone())?;
-        ca_store.add_cert(self.root_ca_cert.clone())?;
-        let ca_store = ca_store.build();
-        Ok(ca_store)
     }
 
     /// Data signed by the configured SSL certificate, in PKCS#7 format.
     pub fn sign_contents(&self, unsigned_contents: Vec<u8>) -> Vec<u8> {
         let ssl_cert = &self.ssl_cert;
         let ssl_key = &self.ssl_key;
-        let empty_certs = Stack::new().expect("should be able to create certificate stack");
-        let signed_contents = Pkcs7::sign(
-            ssl_cert,
-            ssl_key,
-            &empty_certs,
-            &unsigned_contents,
-            Pkcs7Flags::BINARY,
-        )
-        .expect("should be able to sign certificate");
 
-        signed_contents
+        // Encapsulate our contents.
+        let octet_string = OctetStringRef::new(&unsigned_contents)
+            .expect("should be able to encode contents as octet string")
+            .as_bytes();
+        let octet_object = Any::new(Tag::OctetString, octet_string)
+            .expect("should be able to encapsulate octet string");
+
+        let content = EncapsulatedContentInfo {
+            econtent_type: rfc5911::ID_DATA,
+            econtent: Some(octet_object),
+        };
+
+        // We'll be using SHA-1 for backwards compatibility.
+        let signer = SigningKey::<Sha1>::new(ssl_key.clone());
+        let digest_algorithm = AlgorithmIdentifierOwned {
+            oid: rfc5912::ID_SHA_1,
+            parameters: None,
+        };
+
+        // If our builder fails, other things are likely misconfigured.
+        let signer_info = SignerInfoBuilder::new(
+            &signer,
+            SignerIdentifier::IssuerAndSerialNumber(IssuerAndSerialNumber {
+                issuer: ssl_cert.tbs_certificate.issuer.clone(),
+                serial_number: ssl_cert.tbs_certificate.serial_number.clone(),
+            }),
+            digest_algorithm.clone(),
+            &content,
+            None,
+        )
+        .expect("should be able to create builder");
+
+        let signed_data = SignedDataBuilder::new(&content)
+            .add_digest_algorithm(digest_algorithm)
+            .expect("should be able to add digest algorithm")
+            .add_certificate(CertificateChoices::Certificate(ssl_cert.clone()))
+            .expect("should be able to add certificate")
+            .add_signer_info(signer_info)
+            .expect("should be able to add signer info")
+            .build()
+            .expect("should be able to sign data for certificate");
+
+        // Lastly, return in DER form.
+        signed_data
             .to_der()
-            .expect("should be able to convert PKCS7 container to DER form")
+            .expect("should be able to convert CMS container to DER form")
     }
 
     pub fn sign_profile<T: Serialize>(&self, profile: T) -> Response {

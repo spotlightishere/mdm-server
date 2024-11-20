@@ -6,16 +6,18 @@ edition = "2021"
 [dependencies]
 axum = { version = "0.7", features = ["http2"] }
 axum-server = { version = "0.7", features = ["tls-rustls"]}
-cms = "0.2"
+cms = { version = "0.2", features = ["builder"] }
+const-oid = "0.9"
 der = { version = "0.7", features = ["pem"] }
 diesel = { version = "2.0", features = ["r2d2", "sqlite", "time", "uuid"] }
-openssl = "0.10"
 optional_value = { path = "./optional_value" }
 plist = "1"
 rand = "0.8"
 rcgen = { version = "0.13", features = ["aws_lc_rs", "x509-parser"] }
+rsa = { version = "0.9", features = ["sha1"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
+sha1 = "0.10.6"
 time = "0.3"
 tokio = { version = "1.0", features = ["full"] }
 toml = "0.8"
@@ -23,7 +25,7 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["trace"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
-x509-cert = "0.2"
+x509-cert = { version = "0.2", features = ["builder"] }
 
 [profile.release]
 lto = true

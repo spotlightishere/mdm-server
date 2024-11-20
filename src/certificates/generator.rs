@@ -1,6 +1,6 @@
 use rcgen::{
-    BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
-    ExtendedKeyUsagePurpose, Ia5String, IsCa, KeyPair, KeyUsagePurpose, RsaKeySize, SanType,
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose,
+    Ia5String, IsCa, KeyPair, KeyUsagePurpose, RsaKeySize, SanType,
 };
 
 use super::file::{CertificateParamsHelper, CertificateStorage};
@@ -111,8 +111,8 @@ pub fn issue_ca_certificates(config: &Config) {
         .self_signed(root_ca_key)
         .expect("should be able to issue root CA certificate");
     // We sign ourselves.
-    root_ca_cert.write_pem(&root_ca_cert_path);
-    root_ca_key.write_pem(&root_ca_key_path);
+    CertificateStorage::write_ca_pem(&root_ca_cert, &root_ca_cert_path);
+    CertificateStorage::write_key_pem(root_ca_key, &root_ca_key_path);
 
     ///////////////
     // Device CA //
@@ -122,8 +122,8 @@ pub fn issue_ca_certificates(config: &Config) {
     let device_ca_cert = create_device_cert_params(config)
         .signed_by(device_ca_key, &root_ca_cert, root_ca_key)
         .expect("should be able to issue device CA certificate");
-    device_ca_cert.write_pem(&device_ca_cert_path);
-    device_ca_key.write_pem(&device_ca_key_path);
+    CertificateStorage::write_ca_pem(&device_ca_cert, &device_ca_cert_path);
+    CertificateStorage::write_key_pem(device_ca_key, &device_ca_key_path);
 
     /////////////////////
     // SSL certificate //
@@ -133,6 +133,6 @@ pub fn issue_ca_certificates(config: &Config) {
     let ssl_cert = create_ssl_cert_params(config)
         .signed_by(ssl_key, &root_ca_cert, root_ca_key)
         .expect("should be able to issue SSL certificate");
-    ssl_cert.write_pem(&ssl_cert_path);
-    ssl_key.write_pem(&ssl_key_path);
+    CertificateStorage::write_ca_pem(&ssl_cert, &ssl_cert_path);
+    CertificateStorage::write_key_pem(ssl_key, &ssl_key_path);
 }
