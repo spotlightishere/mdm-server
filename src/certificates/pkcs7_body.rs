@@ -7,7 +7,12 @@ use axum::{
     http::StatusCode,
 };
 use cms::{signed_data::SignerIdentifier, signed_data::SignerInfo};
-use der::{asn1::PrintableStringRef, oid::db::rfc4519, referenced::OwnedToRef};
+use der::{
+    asn1::{PrintableStringRef, Utf8StringRef},
+    oid::db::rfc4519,
+    referenced::OwnedToRef,
+    Tag, Tagged,
+};
 use x509_cert::{attr::AttributeTypeAndValue, name::RdnSequence};
 
 /// The signer of the parsed PKCS#7 envelope.
@@ -89,12 +94,12 @@ where
 
     // We'll now determine what signature to match based on string.
     let device_ca_cert = state.certificates.device_ca_cert;
-    let local_server_device_cn = get_cert_cn(&device_ca_cert.tbs_certificate.subject)?.to_string();
+    let server_device_cn = get_cert_cn(&device_ca_cert.tbs_certificate.subject)?.to_string();
     let apple_device_cn = "Apple iPhone Device CA".to_string();
 
     let (signer, _expected_certificate) = if purported_cn == apple_device_cn {
         (Pkcs7Signer::Apple, iphone_device_ca())
-    } else if purported_cn == local_server_device_cn {
+    } else if purported_cn == server_device_cn {
         (Pkcs7Signer::Ourselves, device_ca_cert)
     } else {
         return None;
@@ -111,21 +116,30 @@ fn get_cert_cn(rds: &RdnSequence) -> Option<String> {
     // For our intents and purposes with Apple certificates, we only have one
     // [`RelativeDistinguishedName`] which contains only a single [`AttributeTypeAndValue`] within.
     // However, we'll merge all specified attributes across all given RDNs.
-    let issuer_attributes: Vec<AttributeTypeAndValue> =
+    let cert_attributes: Vec<AttributeTypeAndValue> =
         rds.0.iter().flat_map(|x| x.0.clone().into_vec()).collect();
 
     // Find our common name.
-    let purported_cn = issuer_attributes
+    let purported_cn = cert_attributes
         .into_iter()
         .find(|x| x.oid == rfc4519::COMMON_NAME)?;
 
     // We should be given a string type of some sort.
-    // We've only observed a PrintableString, so let's try this.
-    let given_cn_value = purported_cn
-        .value
-        .owned_to_ref()
-        .decode_as::<PrintableStringRef>()
-        .ok()?;
+    // We've only observed a PrintableString and UTF8String, so let's try them.
+    let purported_value = purported_cn.value;
+    let given_cn_value = match purported_value.tag() {
+        Tag::PrintableString => purported_value
+            .owned_to_ref()
+            .decode_as::<PrintableStringRef>()
+            .ok()?
+            .to_string(),
+        Tag::Utf8String => purported_value
+            .owned_to_ref()
+            .decode_as::<Utf8StringRef>()
+            .ok()?
+            .to_string(),
+        _ => panic!("unknown string type found on Common Name field!"),
+    };
 
-    Some(given_cn_value.to_string())
+    Some(given_cn_value)
 }
