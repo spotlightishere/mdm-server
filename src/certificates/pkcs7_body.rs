@@ -1,16 +1,14 @@
+use super::der_transform::parse_der;
+use crate::{app_state::AppState, certificates::apple_certs::iphone_device_ca};
 use axum::{
     async_trait,
     body::Bytes,
     extract::{FromRef, FromRequest, Request},
     http::StatusCode,
 };
-use openssl::{
-    error::ErrorStack,
-    pkcs7::{Pkcs7, Pkcs7Flags},
-};
-
-use super::apple_certs::AppleCerts;
-use crate::app_state::AppState;
+use cms::{signed_data::SignerIdentifier, signed_data::SignerInfo};
+use der::{asn1::PrintableStringRef, oid::db::rfc4519, referenced::OwnedToRef};
+use x509_cert::attr::AttributeTypeAndValue;
 
 /// The signer of the parsed PKCS#7 envelope.
 pub enum Pkcs7Signer {
@@ -21,7 +19,6 @@ pub enum Pkcs7Signer {
 /// Our abstraction over Pkcs7 itself.
 pub struct Pkcs7Body {
     pub signer: Pkcs7Signer,
-    pub envelope: Pkcs7,
     pub contents: Vec<u8>,
 }
 
@@ -45,88 +42,81 @@ where
         }
 
         // We should be POSTed a PKCS#7 envelope.
-        let Ok(post_body) = Bytes::from_request(req, state).await else {
+        let Ok(post_bytes) = Bytes::from_request(req, state).await else {
             return Err(StatusCode::BAD_REQUEST);
         };
+        let post_body = post_bytes.to_vec();
 
-        let Ok(envelope) = Pkcs7::from_der(&post_body) else {
-            return Err(StatusCode::BAD_REQUEST);
-        };
-
-        // First, determine who issued this envelope.
+        // HACK: Under macOS, the content of our CMS envelope may
+        // not have finite lengths. The Rust [`der`] crate currently
+        // cannot handle these indefinite BER-style lengths.
         //
-        // TODO: Switching between OpenSSL's PKCS#7 implementation and the
-        // Rust pkcs7 crate is extraordinarily messy - we need to refractor.
-        // Tracking issue: https://github.com/spotlightishere/mdm-server/issues/1
-        let Ok(envelope) = Pkcs7::from_der(&post_body) else {
+        // We may need to to transform our PKCS#7 envelope
+        // to have finite lengths specified.
+        // A lack of a result means that an error occurred while parsing.
+        let Some((contents, signing_certificate)) = parse_der(post_body) else {
             return Err(StatusCode::BAD_REQUEST);
         };
 
-        // We'll then utilize OpenSSL
-        let mut contents = Vec::new();
-        let signer = if envelope.apple_ca_issued(&mut contents).is_ok() {
-            Pkcs7Signer::Apple
-        } else if envelope.our_device_ca_issued(state, &mut contents).is_ok() {
-            Pkcs7Signer::Ourselves
-        } else {
-            // Don't hint that anything certificate-related failed.
+        // Determine who issued this envelope.
+        let Some(signer) = determine_issuer(state, signing_certificate) else {
+            // Do not hint we encounter a certificate-related failure.
             return Err(StatusCode::BAD_REQUEST);
         };
 
-        Ok(Self {
-            signer,
-            envelope,
-            contents,
-        })
+        Ok(Self { signer, contents })
     }
 }
 
-pub trait EnvelopeSigner {
-    /// Determine whether this envelope was issued by the Apple iPhone Device CA.
-    fn apple_ca_issued(&self, output: &mut Vec<u8>) -> Result<(), ErrorStack>;
+/// Verifies the issuer of this envelope based on its
+/// specified SignerInfo cert.
+// TODO(spotlightishere): This is not remotely secure as
+// it only checks the last issuer.
+// DO NOT use this in a production environment.
+fn determine_issuer<S>(state: &S, signer: SignerInfo) -> Option<Pkcs7Signer> where
+    S: Send + Sync,
+    AppState: FromRef<S>
+{
+    let state = AppState::from_ref(state);
 
-    /// Determine whether this envelope was issued by our configured device certificate.
-    fn our_device_ca_issued<S>(&self, state: &S, output: &mut Vec<u8>) -> Result<(), ErrorStack>
-    where
-        S: Send + Sync,
-        AppState: FromRef<S>;
-}
+    // Hackily check via the CN who issued this certificate.
+    // We should be given an issuer and serial number.
+    let SignerIdentifier::IssuerAndSerialNumber(issuer) = signer.sid else {
+        return None;
+    };
 
-impl EnvelopeSigner for Pkcs7 {
-    fn apple_ca_issued(&self, output: &mut Vec<u8>) -> Result<(), ErrorStack> {
-        // Apple's envelope should only be signed by their "Apple iPhone Device CA".
-        let ca_stack = AppleCerts::cert_stack()?;
-        let ca_store = AppleCerts::cert_store()?;
+    // For our intents and purposes, we only have one [`RelativeDistinguishedName`]
+    // which contains only a single [`AttributeTypeAndValue`] within.
+    // However, we'll merge all specified attributes across all given RDNs.
+    let issuer_attributes: Vec<AttributeTypeAndValue> = issuer
+        .issuer
+        .0
+        .iter()
+        .flat_map(|x| x.0.clone().into_vec())
+        .collect();
 
-        // We utilize Pkcs7Flags::NOCHAIN because Apple's certificate
-        // does not have S/MIME present under X509v3 Key Usage.
-        self.verify(
-            &ca_stack,
-            &ca_store,
-            None,
-            Some(output),
-            Pkcs7Flags::NOCHAIN,
-        )
-    }
+    // Find our common name.
+    let purported_cn = issuer_attributes
+        .into_iter()
+        .find(|x| x.oid == rfc4519::COMMON_NAME)?;
 
-    fn our_device_ca_issued<S>(&self, state: &S, output: &mut Vec<u8>) -> Result<(), ErrorStack>
-    where
-        S: Send + Sync,
-        AppState: FromRef<S>,
-    {
-        let state = AppState::from_ref(state);
+    // We should be given a string type of some sort.
+    // We've only observed a PrintableString, so let's try this.
+    let given_cn_value = purported_cn
+        .value
+        .owned_to_ref()
+        .decode_as::<PrintableStringRef>()
+        .ok()?;
 
-        // We'll need to extract our certificate.
-        let ca_stack = state.certificates.device_ca_stack()?;
-        let ca_store = state.certificates.device_ca_store()?;
+    // We'll now determine what signature to match based on string.
+    let (signer, expected_certificate) = match given_cn_value.as_str() {
+        "Apple iPhone Device CA" => (Pkcs7Signer::Apple, iphone_device_ca()),
+        // This isn't a CN we recognize.
+        // TODO(spotlightishere): MDM server
+        _ => return None,
+    };
 
-        // Verify!
-        self.verify(
-            &ca_stack,
-            &ca_store,
-            None,
-            Some(output),
-            Pkcs7Flags::empty(),
-        )
-    }
+    // TODO(spotlightishere): Perform actual verification
+    println!("Verifying only on name... TODO: please resolve");
+    Some(signer)
 }

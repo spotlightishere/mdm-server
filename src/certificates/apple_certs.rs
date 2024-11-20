@@ -1,8 +1,5 @@
-use openssl::{
-    error::ErrorStack,
-    stack::Stack,
-    x509::{store::X509Store, store::X509StoreBuilder, verify::X509VerifyFlags, X509},
-};
+use der::DecodePem;
+use x509_cert::Certificate;
 
 // Apple writes:
 // "Validate that the device certificate is issued from “Apple iPhone Device CA”, which has the following Base64 encoded PEM data:"
@@ -85,45 +82,15 @@ IQ7aunMZT7XZNn/Bh1XZp5m5MkL72NVxnn6hUrcbvZNCJBIqxw8dtk2cXmPIS4AX
 UKqK1drk/NAJBzewdXUh
 -----END CERTIFICATE-----";
 
-pub struct AppleCerts;
+pub fn iphone_device_ca() -> Certificate {
+    Certificate::from_pem(APPLE_IPHONE_DEVICE_CA).expect("Apple iPhone Device CA should be valid")
+}
 
-impl AppleCerts {
-    pub fn iphone_device_ca() -> X509 {
-        X509::from_pem(APPLE_IPHONE_DEVICE_CA).expect("Apple iPhone Device CA should be valid")
-    }
+pub fn iphone_ca() -> Certificate {
+    Certificate::from_pem(APPLE_IPHONE_CA)
+        .expect("Apple iPhone Certification Authority should be valid")
+}
 
-    pub fn iphone_ca() -> X509 {
-        X509::from_pem(APPLE_IPHONE_CA)
-            .expect("Apple iPhone Certification Authority should be valid")
-    }
-
-    pub fn root_ca() -> X509 {
-        X509::from_pem(APPLE_ROOT_CA).expect("Apple iPhone Certification Authority should be valid")
-    }
-
-    /// Creates a certificate stack with Apple's iPhone Device CA.
-    /// Any envelope signed by Apple should only be signed by their "Apple iPhone Device CA".
-    pub fn cert_stack() -> Result<Stack<X509>, ErrorStack> {
-        let mut ca_stack = Stack::new().expect("should be able to create X509 stack");
-        ca_stack.push(AppleCerts::iphone_device_ca())?;
-        Ok(ca_stack)
-    }
-
-    /// Creates a certificate store with Apple's three CAs.
-    pub fn cert_store() -> Result<X509Store, ErrorStack> {
-        let mut ca_store = X509StoreBuilder::new()?;
-        ca_store.add_cert(AppleCerts::iphone_device_ca())?;
-        ca_store.add_cert(AppleCerts::iphone_ca())?;
-        ca_store.add_cert(AppleCerts::root_ca())?;
-
-        // Then, we must disable its certificate date validity.
-        //
-        // Apple writes within "Creating a Profile Server for Over-The-Air Enrollment and Configuration":
-        // "WARNING: When device certificates signed 'Apple iPhone Device CA' are evaluated
-        // their validity dates should be ignored."
-        ca_store.set_flags(X509VerifyFlags::NO_CHECK_TIME)?;
-
-        let ca_store = ca_store.build();
-        Ok(ca_store)
-    }
+pub fn root_ca() -> Certificate {
+    Certificate::from_pem(APPLE_ROOT_CA).expect("Apple Root CA should be valid")
 }
