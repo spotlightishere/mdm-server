@@ -1,8 +1,9 @@
 use cms::{
+    cert::IssuerAndSerialNumber,
     content_info::ContentInfo,
     signed_data::{SignedData, SignerInfo},
 };
-use der::{asn1::OctetStringRef, Decode};
+use der::{asn1::OctetStringRef, Decode, Encode};
 
 // Various lengths of tags and objects we use.
 const TAG_LENGTH_INDETERMINATE: usize = 2;
@@ -146,7 +147,7 @@ fn encode_as_der(ber_contents: Vec<u8>) -> Option<Vec<u8>> {
 
 /// Parses the given BER-encoded certificate as a CMS/PKCS#7 signed body,
 /// returning its contents and certificates.
-pub fn parse_der(ber_contents: Vec<u8>) -> Option<(Vec<u8>, SignerInfo)> {
+pub fn parse_der(ber_contents: Vec<u8>) -> Option<SignedData> {
     // For macOS purposes, we may need to re-encode this
     // to have finite DER-style lengths.
     // (The Rust [`der`] crate currently does not support such.)
@@ -163,15 +164,5 @@ pub fn parse_der(ber_contents: Vec<u8>) -> Option<(Vec<u8>, SignerInfo)> {
         .decode_as::<SignedData>()
         .expect("should be able to parse contents as SignedData");
 
-    // As they are, we need to decode the contents as OctetStringRef,
-    // and then get their corresponding bytes.
-    let encap_contents = envelope.encap_content_info.econtent?;
-    let octet_contents = encap_contents.decode_as::<OctetStringRef>().ok()?;
-    let contents = octet_contents.as_bytes().to_vec();
-
-    // Lastly, get our signing certificate.
-    // We're going to assume we only have one signee,
-    // and treat anyone without as a failure.
-    let signer_info = envelope.signer_infos.0.get(0)?;
-    Some((contents, signer_info.clone()))
+    Some(envelope)
 }
