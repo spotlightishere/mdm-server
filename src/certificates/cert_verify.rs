@@ -128,7 +128,19 @@ fn extract_signing_cert(envelope: &SignedData) -> Option<Certificate> {
 /// Verifies that the right-hand potential certificate is signed by
 /// the given left-hand verifying certificate.
 fn verify_cert_signature(verifying_cert: &Certificate, potential_cert: &Certificate) -> Option<()> {
-    // TODO(spotlightishere): Do not commit
+    let potential_contents = potential_cert.tbs_certificate.to_der().ok()?;
+
+    let verifying_subject = verifying_cert
+        .tbs_certificate
+        .subject_public_key_info
+        .owned_to_ref();
+    let verifying_public_key = RsaPublicKey::try_from(verifying_subject).ok()?;
+
+    let signature = SignatureMetadata {
+        contents: potential_cert.signature.as_bytes()?.to_vec(),
+        algorithm: potential_cert.signature_algorithm.oid,
+    };
+    verify_signature(verifying_public_key, signature, &potential_contents)?;
 
     Some(())
 }
