@@ -1,9 +1,5 @@
-use cms::{
-    cert::IssuerAndSerialNumber,
-    content_info::ContentInfo,
-    signed_data::{SignedData, SignerInfo},
-};
-use der::{asn1::OctetStringRef, Decode, Encode};
+use cms::{cert::CertificateChoices, content_info::ContentInfo, signed_data::SignedData};
+use der::{asn1::SetOfVec, Decode, Encode, ErrorKind};
 
 // Various lengths of tags and objects we use.
 const TAG_LENGTH_INDETERMINATE: usize = 2;
@@ -32,6 +28,14 @@ fn insert_object_len(contents: &mut Vec<u8>, object_offset: usize, new_length: u
     // Insert our two length bytes.
     contents.insert(object_offset + 2, first_length);
     contents.insert(object_offset + 3, second_length);
+}
+
+/// Reads the length of the object at the specified offset.
+fn read_object_len(der_contents: &[u8], object_offset: usize) -> usize {
+    u16::from_be_bytes([
+        der_contents[object_offset + 2],
+        der_contents[object_offset + 3],
+    ]) as usize
 }
 
 /// A hack to permit decoding via the [`cms`] crate.
@@ -88,10 +92,8 @@ fn encode_as_der(ber_contents: Vec<u8>) -> Option<Vec<u8>> {
 
     // Good, it is. We'll now parse it as such.
     // The length of our octet string is in the following two bytes.
-    let string_length = u16::from_be_bytes([
-        ber_contents[INNER_STRING_OFFSET + 2],
-        ber_contents[INNER_STRING_OFFSET + 3],
-    ]) as usize;
+    let string_length = read_object_len(&result, INNER_STRING_OFFSET);
+
     // Our total inner string object size is its contents length
     // and its determinate tag.
     let inner_octet_length = string_length + TAG_LENGTH;
@@ -115,6 +117,71 @@ fn encode_as_der(ber_contents: Vec<u8>) -> Option<Vec<u8>> {
     // Remove our outer octet as it's no longer necessary.
     result.remove(OUTER_OCTET_OFFSET);
     result.remove(OUTER_OCTET_OFFSET);
+
+    // Regretfully, we're not done quite yet.
+    // macOS versions (as of at least 15.0, possibly older)
+    // include duplicate certificates within their certificate sets.
+    // This is against specification, and the Rust `der` crate
+    // (rightfully) fails to parse such.
+    // We'll need to manually de-duplicate certificates.
+    //
+    // Our certificate set immediately follows our eContent.
+    // We'll need to go back 2 bytes to adjust to the changes above.
+    let certificate_set_offset = string_end_offset - 2;
+    let certificate_set_length = 4 + read_object_len(&result, certificate_set_offset);
+
+    // Our raw set additionally includes the tag and length, adding another 4 bytes.
+    let certificate_set_end = certificate_set_offset + certificate_set_length;
+    let certificate_set_bytes = &result[certificate_set_offset..certificate_set_end].to_vec();
+
+    // Loop through all certificates and manually read them all.
+    // We initially begin reading 4 bytes in due to the set's tag and length.
+    let mut certificate_set: Vec<&[u8]> = vec![];
+    let mut certificate_loop_offset = 4;
+    while certificate_set_bytes.len() > certificate_loop_offset {
+        // We track the current certificate's length, alongside its tag/length (4 bytes).
+        let current_certificate_len =
+            4 + read_object_len(certificate_set_bytes, certificate_loop_offset);
+
+        // Track for later de-duplication.
+        let current_certificate_end = certificate_loop_offset + current_certificate_len;
+        let current_certificate_bytes =
+            &certificate_set_bytes[certificate_loop_offset..current_certificate_end];
+        certificate_set.push(current_certificate_bytes);
+
+        certificate_loop_offset += current_certificate_len;
+    }
+
+    // We should only have exactly as many bytes as parsed.
+    if certificate_loop_offset > certificate_set_bytes.len() {
+        return None;
+    }
+
+    // Attempt to recreate our CertificateSet.
+    let mut rebuilt_set: SetOfVec<CertificateChoices> = SetOfVec::new();
+    for possible_bytes in certificate_set {
+        let possible_certificate = CertificateChoices::from_der(possible_bytes).ok()?;
+        match rebuilt_set.insert_ordered(possible_certificate) {
+            Ok(()) => continue,
+            Err(e) => match e.kind() {
+                // If this was a duplicate, we've already done our job.
+                ErrorKind::SetDuplicate => continue,
+                // This is not for us to handle.
+                _ => return None,
+            },
+        }
+    }
+
+    // Replace our existing CertificateSet.
+    let mut rebuilt_certificate_set = rebuilt_set.to_der().ok()?;
+    // This is context-specific - this will not be a valid CertificateSet otherwise.
+    if rebuilt_certificate_set[0] == 0x31 {
+        rebuilt_certificate_set[0] = 0xA0;
+    }
+    result.splice(
+        certificate_set_offset..certificate_set_end,
+        rebuilt_certificate_set,
+    );
 
     // We can now work backwards to resize outer objects.
     // First, resize eContent, starting at 46.
@@ -142,6 +209,7 @@ fn encode_as_der(ber_contents: Vec<u8>) -> Option<Vec<u8>> {
     // Its contents length is the entire object offset by its 4-byte tag.
     let content_info_length = result.len() - TAG_LENGTH_INDETERMINATE;
     insert_object_len(&mut result, CONTENT_INFO_OFFSET, content_info_length as u16);
+
     Some(result)
 }
 
