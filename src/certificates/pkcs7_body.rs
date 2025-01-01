@@ -1,7 +1,6 @@
 use super::{cert_verify::determine_signing_ca, der_transform::parse_der};
 use crate::app_state::AppState;
 use axum::{
-    async_trait,
     body::Bytes,
     extract::{FromRef, FromRequest, Request},
     http::StatusCode,
@@ -19,7 +18,6 @@ pub struct Pkcs7Body {
     pub contents: Vec<u8>,
 }
 
-#[async_trait]
 impl<S> FromRequest<S> for Pkcs7Body
 where
     Bytes: FromRequest<S>,
