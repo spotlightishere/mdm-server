@@ -11,7 +11,7 @@ use axum::{
 };
 use diesel::query_dsl::*;
 use diesel::ExpressionMethods;
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -56,7 +56,7 @@ pub async fn generate_enroll_payload(State(state): State<AppState>) -> Response 
 
     // We'll persist this challenge to identify enrollment later.
     // TODO: Have proper authentication for challenge creation
-    let random_challenge = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    let random_challenge = Alphanumeric.sample_string(&mut rand::rng(), 16);
     let enrollment = PendingEnrollment {
         challenge: random_challenge.clone(),
         creation_date: OffsetDateTime::now_utc(),
