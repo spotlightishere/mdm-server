@@ -1,5 +1,5 @@
 use cms::{cert::CertificateChoices, content_info::ContentInfo, signed_data::SignedData};
-use der::{asn1::SetOfVec, Decode, Encode, ErrorKind};
+use der::{Decode, Encode, ErrorKind, asn1::SetOfVec};
 
 // Various lengths of tags and objects we use.
 const TAG_LENGTH_INDETERMINATE: usize = 2;

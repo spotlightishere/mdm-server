@@ -1,9 +1,9 @@
 use axum::{
-    http::header,
     http::StatusCode,
+    http::header,
     response::{IntoResponse, Response},
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// An XML property list formatted reply.
 pub struct Plist<T>(pub T);

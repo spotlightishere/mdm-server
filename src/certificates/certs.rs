@@ -1,7 +1,7 @@
 use crate::plist::Plist;
 use crate::{app_state::AppState, config::Config};
 use axum::{
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use cms::{
@@ -9,14 +9,17 @@ use cms::{
     cert::{CertificateChoices, IssuerAndSerialNumber},
     signed_data::{EncapsulatedContentInfo, SignerIdentifier},
 };
-use const_oid::db::{rfc5911, rfc5912};
-use der::{asn1::OctetStringRef, Any, DecodePem, Encode, Tag};
-use rsa::{pkcs1v15::SigningKey, pkcs8::DecodePrivateKey, RsaPrivateKey};
+use der::{
+    Any, DecodePem, Encode, Tag,
+    asn1::OctetStringRef,
+    oid::db::{rfc5911, rfc5912},
+};
+use rsa::{RsaPrivateKey, pkcs1v15::SigningKey, pkcs8::DecodePrivateKey};
 use serde::Serialize;
 use sha1::Sha1;
 use std::fs;
 use std::path::Path;
-use x509_cert::{spki::AlgorithmIdentifierOwned, Certificate};
+use x509_cert::{Certificate, spki::AlgorithmIdentifierOwned};
 
 use super::generator;
 

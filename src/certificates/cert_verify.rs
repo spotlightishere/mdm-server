@@ -5,14 +5,16 @@ use cms::{
     cert::CertificateChoices,
     signed_data::{SignedData, SignerIdentifier},
 };
-use const_oid::ObjectIdentifier;
-use der::asn1::OctetStringRef;
-use der::DecodePem;
-use der::{oid::db::rfc5912, referenced::OwnedToRef, Encode};
+use der::{
+    DecodePem, Encode,
+    asn1::OctetStringRef,
+    oid::{ObjectIdentifier, db::rfc5912},
+    referenced::OwnedToRef,
+};
 use rsa::{
+    RsaPublicKey,
     pkcs1v15::{Signature, VerifyingKey},
     signature::Verifier,
-    RsaPublicKey,
 };
 use sha1::Sha1;
 use sha2::Sha256;

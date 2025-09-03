@@ -1,6 +1,6 @@
 use rcgen::{
-    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose,
-    Ia5String, IsCa, KeyPair, KeyUsagePurpose, RsaKeySize, SanType,
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa,
+    Issuer, KeyPair, KeyUsagePurpose, RsaKeySize,
 };
 
 use crate::config::Config;
@@ -63,7 +63,10 @@ fn create_device_cert_params(config: &Config) -> CertificateParams {
 
 /// Generates a general SSL certificate for the configured base domain.
 fn create_ssl_cert_params(config: &Config) -> CertificateParams {
-    let mut cert_params = CertificateParams::default();
+    // We should only have our base domain as a Subject Alternative Name.
+    let alt_names = vec![config.service.base_domain.clone()];
+    let mut cert_params = CertificateParams::new(alt_names)
+        .expect("should be able to format base domain for SSL certificate");
 
     // We'll set our domain name as the CN.
     let mut cert_name = DistinguishedName::new();
@@ -71,16 +74,12 @@ fn create_ssl_cert_params(config: &Config) -> CertificateParams {
     cert_name.push(DnType::OrganizationName, &config.service.organization_name);
     cert_params.distinguished_name = cert_name;
 
-    let base_domain = Ia5String::try_from(config.service.base_domain.clone())
-        .expect("should be able to format base domain for SSL certificate");
-
     // For our SSL certificate, its validity cannot exceed 825 days
     // if we want any modern Apple platform to mark it as valid.
     // For more information: https://support.apple.com/en-us/HT210176
     cert_params.set_days_valid(825);
     // Per Apple, we must have id-kp-serverAuth applied.
     cert_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
-    cert_params.subject_alt_names = vec![SanType::DnsName(base_domain)];
     cert_params.key_usages = vec![
         KeyUsagePurpose::DigitalSignature,
         KeyUsagePurpose::DigitalSignature,
@@ -107,39 +106,42 @@ pub fn issue_ca_certificates(config: &Config) {
     /////////////////////////
     // Root CA certificate //
     /////////////////////////
-    let root_ca_key = &create_rsa_keypair();
-    let root_ca_cert = create_root_cert_params(config)
-        .self_signed(root_ca_key)
+    let root_ca_key = create_rsa_keypair();
+    let root_ca_params = create_root_cert_params(config);
+    let root_ca_cert = root_ca_params
+        .self_signed(&root_ca_key)
         .expect("should be able to issue root CA certificate");
+    let root_issuer = Issuer::new(root_ca_params, root_ca_key);
+
     // We sign ourselves.
-    write_ca_pem(&root_ca_cert, &root_ca_cert_path);
-    write_key_pem(root_ca_key, &root_ca_key_path);
+    write_ca_pem(root_ca_cert, &root_ca_cert_path);
+    write_key_pem(root_issuer.key(), &root_ca_key_path);
 
     ///////////////
     // Device CA //
     ///////////////
     // Next, we'll need our device CA, issued by our root CA.
-    let device_ca_key = &create_rsa_keypair();
+    let device_ca_key = create_rsa_keypair();
     let device_ca_cert = create_device_cert_params(config)
-        .signed_by(device_ca_key, &root_ca_cert, root_ca_key)
+        .signed_by(&device_ca_key, &root_issuer)
         .expect("should be able to issue device CA certificate");
-    write_ca_pem(&device_ca_cert, &device_ca_cert_path);
-    write_key_pem(device_ca_key, &device_ca_key_path);
+    write_ca_pem(device_ca_cert, &device_ca_cert_path);
+    write_key_pem(&device_ca_key, &device_ca_key_path);
 
     /////////////////////
     // SSL certificate //
     /////////////////////
     // Lastly, we'll generate our SSL certificate. It's similarly issued by our root CA.
-    let ssl_key = &create_rsa_keypair();
+    let ssl_key = create_rsa_keypair();
     let ssl_cert = create_ssl_cert_params(config)
-        .signed_by(ssl_key, &root_ca_cert, root_ca_key)
+        .signed_by(&ssl_key, &root_issuer)
         .expect("should be able to issue SSL certificate");
-    write_ca_pem(&ssl_cert, &ssl_cert_path);
-    write_key_pem(ssl_key, &ssl_key_path);
+    write_ca_pem(ssl_cert, &ssl_cert_path);
+    write_key_pem(&ssl_key, &ssl_key_path);
 }
 
 /// Serializes this certificate to the given path in PEM format.
-pub fn write_ca_pem(ca: &rcgen::Certificate, key_path: &Path) {
+pub fn write_ca_pem(ca: rcgen::Certificate, key_path: &Path) {
     let cert_contents = ca.pem();
     fs::write(key_path, cert_contents).expect("should be able to write CA certificate");
 }

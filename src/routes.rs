@@ -1,5 +1,5 @@
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 

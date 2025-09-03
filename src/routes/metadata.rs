@@ -1,8 +1,8 @@
 use crate::app_state::AppState;
 use crate::payloads::{BasePayload, PayloadScope, PayloadType, Profile, RootCertificatePayload};
+use axum::Json;
 use axum::extract::State;
 use axum::response::Response;
-use axum::Json;
 use der::Encode;
 use serde::Serialize;
 

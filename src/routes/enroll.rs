@@ -1,7 +1,7 @@
 use crate::app_state::AppState;
 use crate::certificates::{Pkcs7Body, Pkcs7Signer};
 use crate::database::pending_enrollments::dsl::*;
-use crate::database::{pending_enrollments, PendingEnrollment};
+use crate::database::{PendingEnrollment, pending_enrollments};
 use crate::payloads::{BasePayload, PayloadType, Profile, ScepPayload, ScepPayloadContents};
 use crate::plist::Plist;
 use axum::{
@@ -9,8 +9,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use diesel::query_dsl::*;
 use diesel::ExpressionMethods;
+use diesel::query_dsl::*;
 use rand::distr::{Alphanumeric, SampleString};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
